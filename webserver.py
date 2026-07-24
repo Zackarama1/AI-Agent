@@ -166,7 +166,12 @@ def _to_ampm(t: str) -> str:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "has_key": bool(os.getenv("ANTHROPIC_API_KEY"))}
+    from browser_tools import browserbase_connect_url
+    return {
+        "ok": True,
+        "has_key": bool(os.getenv("ANTHROPIC_API_KEY")),
+        "hosted_browser": bool(browserbase_connect_url()),
+    }
 
 
 @app.get("/api/tasks")

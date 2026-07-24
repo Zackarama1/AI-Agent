@@ -13,19 +13,51 @@ import os
 from playwright.async_api import async_playwright, Page
 
 
+def browserbase_connect_url() -> str | None:
+    """Build the Browserbase CDP connect URL if a key is configured, else None.
+
+    Set BROWSERBASE_API_KEY (and optionally BROWSERBASE_PROJECT_ID) to run the
+    agent on a hosted browser instead of a local Chromium — the right call in
+    production, where you don't want a headless browser per request on your app
+    server. BROWSERBASE_CONNECT_URL overrides the URL entirely (also handy for
+    pointing at any other CDP endpoint, or for testing)."""
+    override = os.getenv("BROWSERBASE_CONNECT_URL")
+    if override:
+        return override
+    key = os.getenv("BROWSERBASE_API_KEY")
+    if not key:
+        return None
+    url = f"wss://connect.browserbase.com?apiKey={key}"
+    pid = os.getenv("BROWSERBASE_PROJECT_ID")
+    if pid:
+        url += f"&projectId={pid}"
+    return url
+
+
 class BrowserSession:
     def __init__(self, headed: bool = False):
         self.headed = headed
+        self.remote = False
         self._pw = None
         self._browser = None
         self.page: Page | None = None
 
     async def start(self):
         self._pw = await async_playwright().start()
+        connect_url = browserbase_connect_url()
+        if connect_url:
+            # Hosted browser (Browserbase / any CDP endpoint). Reuse the session's
+            # default context/page that the provider opens for us.
+            self.remote = True
+            self._browser = await self._pw.chromium.connect_over_cdp(connect_url)
+            context = (self._browser.contexts[0] if self._browser.contexts
+                       else await self._browser.new_context())
+            self.page = context.pages[0] if context.pages else await context.new_page()
+            return
+
+        # Local Chromium. Optionally pin the binary (Docker/CI/servers); left
+        # unset on a normal machine, Playwright uses its installed build.
         launch_kwargs = {"headless": not self.headed}
-        # Optional: pin the Chromium binary (useful in Docker/CI/servers where
-        # the browser lives at a fixed path). Left unset on a normal machine,
-        # Playwright uses the build it installed via `playwright install`.
         exe = os.getenv("PLAYWRIGHT_CHROMIUM_PATH")
         if exe:
             launch_kwargs["executable_path"] = exe

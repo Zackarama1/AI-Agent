@@ -43,8 +43,10 @@ def _resolve_url(url: str) -> str:
 
 async def run_task_events(task: dict, mode: str = "dry_run") -> AsyncIterator[dict]:
     task = {**task, "start_url": _resolve_url(task["start_url"])}
+    from browser_tools import browserbase_connect_url
+    where = "hosted browser" if browserbase_connect_url() else "local browser"
     session = BrowserSession(headed=False)
-    yield {"type": "status", "message": f"Starting browser ({mode} mode)…"}
+    yield {"type": "status", "message": f"Starting {where} ({mode} mode)…"}
     await session.start()
     try:
         if mode == "real":

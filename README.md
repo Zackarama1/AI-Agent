@@ -237,9 +237,11 @@ Store." Nothing below is wired to secrets in this repo — you add the keys.
 - Set `ANTHROPIC_API_KEY` in `.env`. That alone flips parsing **and** booking
   from dry-run to live (`claude-sonnet-5`).
 - For booking real sites at scale you want a **hosted headless browser** instead
-  of a local Playwright process: **Browserbase** (built for exactly this) or
-  your own pool of Playwright workers. Set `PLAYWRIGHT_CHROMIUM_PATH` or swap
-  `BrowserSession.start()` to connect over CDP to the hosted browser.
+  of a local Playwright process per request. **This is now built in:** set
+  `BROWSERBASE_API_KEY` (and `BROWSERBASE_PROJECT_ID`) and `BrowserSession`
+  connects to a [Browserbase](https://www.browserbase.com/) browser over CDP;
+  leave them unset to run local. `/api/health` reports `hosted_browser`, and each
+  run's first status line says whether it's on a hosted or local browser.
 
 ### 2. The reservation "backends" — read this first
 There is **no public booking API** for the big consumer platforms:
