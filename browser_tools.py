@@ -9,6 +9,7 @@ for cases where the agent gets stuck and needs to actually look.
 """
 
 import asyncio
+import os
 from playwright.async_api import async_playwright, Page
 
 
@@ -21,7 +22,14 @@ class BrowserSession:
 
     async def start(self):
         self._pw = await async_playwright().start()
-        self._browser = await self._pw.chromium.launch(headless=not self.headed)
+        launch_kwargs = {"headless": not self.headed}
+        # Optional: pin the Chromium binary (useful in Docker/CI/servers where
+        # the browser lives at a fixed path). Left unset on a normal machine,
+        # Playwright uses the build it installed via `playwright install`.
+        exe = os.getenv("PLAYWRIGHT_CHROMIUM_PATH")
+        if exe:
+            launch_kwargs["executable_path"] = exe
+        self._browser = await self._pw.chromium.launch(**launch_kwargs)
         context = await self._browser.new_context()
         self.page = await context.new_page()
 
