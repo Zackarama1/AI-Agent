@@ -1,11 +1,12 @@
 // Minimal service worker: caches the app shell so the PWA opens offline.
 // API calls (/api/*, /demo/*) always go to the network.
-const CACHE = "concierge-v2";
+const CACHE = "concierge-v3";
 const SHELL = [
   ".",
   "index.html",
   "styles.css",
   "app.js",
+  "config.js",
   "icon.svg",
   "manifest.webmanifest",
 ];

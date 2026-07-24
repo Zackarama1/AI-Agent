@@ -3,7 +3,13 @@
 /* ---------------- tiny helpers ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const api = (p, opts) => fetch(p, opts).then((r) => (r.ok ? r.json() : Promise.reject(r)));
+
+// Resolve an API path against the configured base (same-origin by default,
+// the deployed URL in the native build). Keeps relative paths working when
+// FastAPI serves this page.
+const API_BASE = ((window.APP_CONFIG && window.APP_CONFIG.apiBase) || "").replace(/\/$/, "");
+const url = (p) => (API_BASE ? `${API_BASE}/${p}` : p);
+const api = (p, opts) => fetch(url(p), opts).then((r) => (r.ok ? r.json() : Promise.reject(r)));
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
 const state = { hasKey: false, reservations: [], intent: null };
@@ -25,6 +31,9 @@ async function boot() {
   $$("#chips button").forEach((b) => b.addEventListener("click", () => { $("#prompt").value = b.dataset.fill; submitPrompt(b.dataset.fill); }));
   $("#mic").addEventListener("click", toggleVoice);
   $("#sheetClose").addEventListener("click", () => $("#sheet").hidden = true);
+
+  const sub = $("#subscribe");
+  if (sub) sub.href = url("api/reservations.ics");
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   loadReservations();
@@ -192,7 +201,7 @@ function addEvent(icon, tool, detail, cls) {
 }
 
 function streamRun(runId, onDone) {
-  const src = new EventSource(`api/runs/${runId}/stream`);
+  const src = new EventSource(url(`api/runs/${runId}/stream`));
   src.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     switch (ev.type) {

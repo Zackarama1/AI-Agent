@@ -276,12 +276,25 @@ Wire `POST /api/reservations/{id}/call` to a voice stack. Two routes:
 - **Higher quality / offline:** stream mic audio to **Whisper** (or Deepgram)
   and keep the same `/api/parse` call.
 
-### 6. Ship it as a native iOS/Android app
-The app is a thin client over the API, so the shortest path to the App Store is
-to **wrap this exact web app with [Capacitor](https://capacitorjs.com/)** — you
-get native shells, push notifications, and native calendar/mic plugins without a
-rewrite. (A from-scratch **Expo / React Native** client is the alternative; it
-calls the same endpoints.) Point the wrapper at your deployed API URL.
+### 6. Ship it as a native iOS/Android app — scaffolded in `native/`
+The **Capacitor** wrapper already exists in [`native/`](native/README.md): it
+bundles this exact web app into a native shell (branded icon + splash included)
+that calls your deployed API. Verified end-to-end here through the Android
+project scaffold and icon generation — the only steps left are the device builds
+(Xcode / Android Studio):
+
+```bash
+cd native && npm install
+API_BASE=https://your-app.fly.dev npm run sync:web
+npx cap add ios        # and/or: npx cap add android
+npm run icons
+npx cap open ios       # build & run in Xcode / Android Studio
+```
+
+The web app routes all requests through a configurable API base (`web/config.js`),
+and the server sends CORS headers for the native origin, so no rewrite is needed.
+(A from-scratch **Expo / React Native** client is an alternative; it calls the
+same endpoints.)
 
 ### 7. Make it multi-user and deploy
 - **Accounts + auth:** add users (e.g. Auth0/Clerk or your own), scope

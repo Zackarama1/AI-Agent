@@ -32,6 +32,7 @@ from pathlib import Path
 
 import yaml
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -47,6 +48,18 @@ WEB = BASE / "web"
 TASKS = BASE / "tasks"
 
 app = FastAPI(title="Booking Agent")
+
+# The native app (Capacitor) loads from capacitor://localhost / http://localhost
+# and calls this API cross-origin, so CORS must be open to it. We don't use
+# cookies, so a permissive default is safe; lock it down with ALLOWED_ORIGINS
+# (comma-separated) in production if you prefer.
+_origins = os.getenv("ALLOWED_ORIGINS", "*")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if _origins.strip() == "*" else [o.strip() for o in _origins.split(",")],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------- models ----------

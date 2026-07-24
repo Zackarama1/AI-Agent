@@ -12,9 +12,17 @@ env/
 results.csv
 debug_screenshot.png
 *.png
+# brand source art for the native build must be tracked
+!native/assets/*.png
 
 # Local database (runtime data)
 data/
+
+# Native (Capacitor) generated output
+native/www/
+native/node_modules/
+native/ios/
+native/android/
 
 # OS junk
 .DS_Store

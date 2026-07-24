@@ -1,0 +1,13 @@
+{
+  "appId": "com.concierge.app",
+  "appName": "Concierge",
+  "webDir": "www",
+  "backgroundColor": "#07070d",
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  }
+}
