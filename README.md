@@ -13,12 +13,19 @@ in order:
   calendar with `.ics` phone sync, and two booking mechanisms (AI form-filling
   now; AI phone calls as a wired-up stub).
 
-**Quick start:**
+**Quick start (one command):**
 
 ```bash
-pip install -r requirements.txt
-python webserver.py                       # http://0.0.0.0:8000
+./run.sh                                  # sets up a venv, installs deps +
+                                          # Chromium, then starts the server
 # open http://localhost:8000 (or http://<your-ip>:8000 on your phone)
+```
+
+`run.sh` is safe to re-run. Prefer to do it by hand? `make run`, or:
+
+```bash
+pip install -r requirements.txt && playwright install chromium
+python webserver.py                       # http://0.0.0.0:8000
 ```
 
 With no `ANTHROPIC_API_KEY` set, everything runs in a **scripted dry-run** (real
@@ -187,6 +194,40 @@ calendar. All bookings persist in a local SQLite DB (`data/app.db`).
 > booking with no API key. With a key set, the real Claude agent does the same
 > with judgement.
 
+## Deploy to a real URL
+
+The repo ships a production `Dockerfile` (Python + Playwright's own Chromium),
+plus configs for two hosts. Both give you an HTTPS URL you can open anywhere and
+install on your phone. Chromium needs memory — use a plan with **~1 GB RAM**
+(the free tiers usually OOM).
+
+**Fly.io**
+
+```bash
+# one-time: install flyctl and `fly auth login`
+fly launch --copy-config --ha=false          # reads fly.toml; pick a unique app name
+fly secrets set ANTHROPIC_API_KEY=sk-ant-...  # optional: real AI bookings
+fly deploy
+fly open                                       # opens your live URL
+```
+
+**Render.com**
+
+1. Push this repo to GitHub (already done).
+2. Render → **New → Blueprint** → select this repo (it reads `render.yaml`).
+3. When it's up, add `ANTHROPIC_API_KEY` under the service's **Environment**.
+
+**Locally, exactly as it deploys** (needs Docker running):
+
+```bash
+make docker-build && make docker-run          # http://localhost:8000
+```
+
+> The `Dockerfile` deliberately leaves `PLAYWRIGHT_CHROMIUM_PATH` unset so the
+> app uses the Chromium installed at build time. Reservations live in SQLite
+> (`data/app.db`), which is **ephemeral** on both hosts — attach a volume or move
+> to Postgres (see below) before you rely on the data surviving a redeploy.
+
 ## Getting the rest online (what you still need)
 
 This is the honest map from "works on my laptop" to "real product on the App
@@ -304,6 +345,11 @@ booking-agent-poc/
 ├── tasks/
 │   ├── example_form_signup.yaml
 │   └── example_reservation.yaml
+├── run.sh                   # one-command local setup + start
+├── Makefile                 # make run / docker-build / docker-run / deploy-fly
+├── Dockerfile               # production image (Python + Playwright Chromium)
+├── fly.toml                 # Fly.io deploy config
+├── render.yaml              # Render.com deploy config
 ├── requirements.txt
 ├── .env.example
 └── README.md

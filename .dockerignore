@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+data
+.env
+results.csv
+debug_screenshot.png
+*.png
+README.md

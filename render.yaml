@@ -1,0 +1,18 @@
+# Render.com Blueprint. To deploy:
+#   1. Push this repo to GitHub (done).
+#   2. Render dashboard -> New -> Blueprint -> pick this repo.
+#   3. After it builds, add ANTHROPIC_API_KEY under the service's Environment.
+#
+# Chromium needs real memory — the free plan will likely OOM, so this asks for
+# the "starter" plan. Render provides $PORT automatically; webserver.py reads it.
+services:
+  - type: web
+    name: concierge-booking
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set this in the Render dashboard, not in git
