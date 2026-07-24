@@ -1,0 +1,17 @@
+# Secrets — never commit your real key
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# Harness output / debug artifacts
+results.csv
+debug_screenshot.png
+*.png
+
+# OS junk
+.DS_Store
