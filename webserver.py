@@ -1,21 +1,28 @@
 """
 Local server for the Booking Agent app.
 
-Wraps the existing agent + browser tools in an HTTP API and serves a
-mobile-first web app (a PWA you can 'Add to Home Screen'). Run it:
+Wraps the AI agent + browser tools in an HTTP API and serves a mobile-first
+PWA (the app you install on your phone). Run it:
 
     uvicorn webserver:app --host 0.0.0.0 --port 8000
-    # or just: python webserver.py
+    # or: python webserver.py
 
 Then open http://<this-machine-ip>:8000 on your phone (same Wi-Fi).
 
-API:
-    GET  /api/health              -> {ok, has_key}
-    GET  /api/tasks               -> bundled task templates for the picker
-    POST /api/runs   {instruction, start_url, mode}  -> {id, mode}
-    GET  /api/runs/{id}           -> run summary
-    GET  /api/runs/{id}/stream    -> Server-Sent Events, one per agent step
-    GET  /demo/form               -> a local practice form (zero external deps)
+API overview:
+    GET  /api/health                    -> {ok, has_key}
+    GET  /api/tasks                     -> demo task templates
+    POST /api/parse   {prompt}          -> structured booking intent
+    GET  /api/reservations              -> list (feeds the calendar)
+    POST /api/reservations {intent}     -> create a reservation (draft)
+    GET  /api/reservations/{id}         -> one reservation
+    POST /api/reservations/{id}/book    -> run the AI agent to book it -> {run_id}
+    POST /api/reservations/{id}/cancel  -> mark cancelled
+    POST /api/reservations/{id}/call    -> phone-agent (stub until Twilio wired)
+    GET  /api/reservations.ics          -> subscribe from iOS/Android calendar
+    POST /api/runs   {instruction,...}  -> low-level: start any agent run
+    GET  /api/runs/{id}/stream          -> Server-Sent Events, one per step
+    GET  /demo/form                     -> a local practice form (no deps)
 """
 
 import asyncio
@@ -25,12 +32,14 @@ from pathlib import Path
 
 import yaml
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import store
 from agent_service import run_task_events
 from jobs import JOBS, Job
+from nlu import parse_booking
 
 BASE = Path(__file__).resolve().parent
 WEB = BASE / "web"
@@ -39,11 +48,89 @@ TASKS = BASE / "tasks"
 app = FastAPI(title="Booking Agent")
 
 
+# ---------- models ----------
+
 class RunRequest(BaseModel):
     instruction: str
     start_url: str
     mode: str = "auto"  # auto | real | dry_run
 
+
+class ParseRequest(BaseModel):
+    prompt: str
+
+
+class Intent(BaseModel):
+    venue: str = ""
+    start_url: str = ""
+    party_size: int = 2
+    date: str = ""
+    time: str = ""
+    name: str = ""
+    phone: str = ""
+    notes: str = ""
+    method: str = "agent"
+    source_prompt: str = ""
+
+
+# ---------- helpers ----------
+
+def _mode_from(requested: str) -> str:
+    if requested == "auto":
+        return "real" if os.getenv("ANTHROPIC_API_KEY") else "dry_run"
+    if requested not in ("real", "dry_run"):
+        raise HTTPException(400, f"unknown mode: {requested}")
+    return requested
+
+
+def _start_agent(task: dict, mode: str, reservation_id: str | None = None) -> Job:
+    job = Job(task, mode)
+    JOBS[job.id] = job
+    asyncio.create_task(_drive(job, reservation_id))
+    return job
+
+
+async def _drive(job: Job, reservation_id: str | None = None):
+    job.status = "running"
+    if reservation_id:
+        store.update_reservation(reservation_id, status="pending", run_id=job.id)
+    try:
+        async for ev in run_task_events(job.task, mode=job.mode):
+            if ev.get("type") == "result":
+                job.outcome = ev.get("outcome")
+                job.note = ev.get("note")
+                job.steps = ev.get("steps", 0)
+            await job.emit(ev)
+        job.status = "done"
+    except Exception as e:
+        await job.emit({"type": "error", "message": f"{type(e).__name__}: {e}"})
+        job.status = "error"
+        job.outcome = "failed"
+    finally:
+        if reservation_id:
+            status = {"success": "confirmed", "needs_human": "needs_human",
+                      "failed": "failed"}.get(job.outcome or "failed", "failed")
+            store.update_reservation(reservation_id, status=status)
+        await job.emit({"type": "end"})
+        job.finished.set()
+
+
+def _booking_task(res: dict) -> dict:
+    when = f"{res.get('date')} {res.get('time')}".strip()
+    instruction = (
+        f"Book a table for {res.get('party_size')} at {res.get('venue') or 'the venue'} "
+        f"on {when} under the name '{res.get('name') or 'the guest'}'"
+        + (f", phone {res['phone']}" if res.get("phone") else "")
+        + (f". Notes: {res['notes']}" if res.get("notes") else "")
+        + ". If the exact time is unavailable, pick the closest within 30 minutes and note it. "
+        "If a card is required to hold the table, call submit_payment (simulated). "
+        "Confirm the booking before finishing."
+    )
+    # Default to the built-in demo form so a keyless dry-run always has a target.
+    return {"instruction": instruction, "start_url": res.get("start_url") or "/demo/form"}
+
+
+# ---------- basic ----------
 
 @app.get("/api/health")
 def health():
@@ -73,36 +160,86 @@ def list_tasks():
     return tasks
 
 
+# ---------- natural language / voice ----------
+
+@app.post("/api/parse")
+def parse(req: ParseRequest):
+    if not req.prompt.strip():
+        raise HTTPException(400, "empty prompt")
+    intent = parse_booking(req.prompt)
+    intent["used_model"] = bool(os.getenv("ANTHROPIC_API_KEY"))
+    return intent
+
+
+# ---------- reservations / calendar ----------
+
+@app.get("/api/reservations")
+def reservations():
+    return store.list_reservations()
+
+
+@app.post("/api/reservations")
+def create_reservation(intent: Intent):
+    res = store.create_reservation(intent.model_dump())
+    return res
+
+
+@app.get("/api/reservations/{rid}")
+def one_reservation(rid: str):
+    res = store.get_reservation(rid)
+    if not res:
+        raise HTTPException(404, "no such reservation")
+    return res
+
+
+@app.post("/api/reservations/{rid}/book")
+async def book_reservation(rid: str, mode: str = "auto"):
+    res = store.get_reservation(rid)
+    if not res:
+        raise HTTPException(404, "no such reservation")
+    m = _mode_from(mode)
+    job = _start_agent(_booking_task(res), m, reservation_id=rid)
+    return {"reservation_id": rid, "run_id": job.id, "mode": m}
+
+
+@app.post("/api/reservations/{rid}/cancel")
+def cancel_reservation(rid: str):
+    res = store.update_reservation(rid, status="cancelled")
+    if not res:
+        raise HTTPException(404, "no such reservation")
+    return res
+
+
+@app.post("/api/reservations/{rid}/call")
+def call_reservation(rid: str):
+    """Phone-agent booking. Stubbed until a voice provider is wired up
+    (Twilio Voice + a realtime voice model, or Vapi/Bland/Retell)."""
+    res = store.get_reservation(rid)
+    if not res:
+        raise HTTPException(404, "no such reservation")
+    return {
+        "configured": False,
+        "message": ("Phone-agent mode is not configured on this server. Wire up a "
+                    "voice provider (see README > Phone agent) and set the venue's "
+                    "phone number to enable AI calls."),
+        "would_call": res.get("phone") or "(no phone on file)",
+        "reservation_id": rid,
+    }
+
+
+@app.get("/api/reservations.ics")
+def reservations_ics():
+    body = store.to_ics(store.list_reservations())
+    return PlainTextResponse(body, media_type="text/calendar")
+
+
+# ---------- low-level agent runs ----------
+
 @app.post("/api/runs")
 async def create_run(req: RunRequest):
-    mode = req.mode
-    if mode == "auto":
-        mode = "real" if os.getenv("ANTHROPIC_API_KEY") else "dry_run"
-    if mode not in ("real", "dry_run"):
-        raise HTTPException(400, f"unknown mode: {mode}")
-
-    job = Job({"instruction": req.instruction, "start_url": req.start_url}, mode)
-    JOBS[job.id] = job
-    asyncio.create_task(_drive(job))
-    return {"id": job.id, "mode": mode}
-
-
-async def _drive(job: Job):
-    job.status = "running"
-    try:
-        async for ev in run_task_events(job.task, mode=job.mode):
-            if ev.get("type") == "result":
-                job.outcome = ev.get("outcome")
-                job.note = ev.get("note")
-                job.steps = ev.get("steps", 0)
-            await job.emit(ev)
-        job.status = "done"
-    except Exception as e:  # surface the failure to the UI instead of dying silently
-        await job.emit({"type": "error", "message": f"{type(e).__name__}: {e}"})
-        job.status = "error"
-    finally:
-        await job.emit({"type": "end"})
-        job.finished.set()
+    m = _mode_from(req.mode)
+    job = _start_agent({"instruction": req.instruction, "start_url": req.start_url}, m)
+    return {"id": job.id, "mode": m}
 
 
 @app.get("/api/runs/{run_id}")
@@ -142,7 +279,7 @@ def demo_form():
     return FileResponse(WEB / "demo_form.html")
 
 
-# Mount the PWA at the root LAST so the API routes above take precedence.
+# Serve the PWA at the root LAST so API routes take precedence.
 app.mount("/", StaticFiles(directory=str(WEB), html=True), name="web")
 
 

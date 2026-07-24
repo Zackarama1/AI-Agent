@@ -1,8 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Booking Agent">
-  <rect width="512" height="512" rx="112" fill="#0b1020"/>
-  <rect x="104" y="120" width="304" height="272" rx="36" fill="#1b2340" stroke="#6ea8fe" stroke-width="14"/>
-  <rect x="104" y="120" width="304" height="70" rx="36" fill="#6ea8fe"/>
-  <circle cx="176" cy="104" r="18" fill="#6ea8fe"/>
-  <circle cx="336" cy="104" r="18" fill="#6ea8fe"/>
-  <path d="M186 300 l40 42 l104 -108" fill="none" stroke="#3ecf8e" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Concierge">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b7bff"/>
+      <stop offset="0.55" stop-color="#6d5cf0"/>
+      <stop offset="1" stop-color="#a468f0"/>
+    </linearGradient>
+    <linearGradient id="star" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4d6"/>
+      <stop offset="1" stop-color="#f3c47a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <path d="M256 104 c14 74 30 90 104 104 c-74 14 -90 30 -104 104 c-14 -74 -30 -90 -104 -104 c74 -14 90 -30 104 -104 z" fill="url(#star)"/>
+  <circle cx="150" cy="360" r="20" fill="#fff" opacity="0.9"/>
+  <circle cx="372" cy="150" r="12" fill="#fff" opacity="0.75"/>
 </svg>

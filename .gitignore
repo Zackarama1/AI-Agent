@@ -13,5 +13,8 @@ results.csv
 debug_screenshot.png
 *.png
 
+# Local database (runtime data)
+data/
+
 # OS junk
 .DS_Store
