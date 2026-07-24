@@ -1,0 +1,16 @@
+# Example task: restaurant reservation.
+# Use a site with a test/sandbox mode if one exists, or your own test
+# account on a real site — never a live booking you don't actually want.
+
+name: example_restaurant_booking
+start_url: "https://example.com/restaurant/some-place"
+instruction: >
+  Book a table for 2 people this Friday at 7:00 PM under the name
+  "Test User" with phone number "555-0100". If 7:00 PM is not available,
+  pick the closest available time within 30 minutes and note the change.
+  If the site requires a card to hold the reservation, call submit_payment
+  (it is simulated) rather than entering real card details. Confirm the
+  booking succeeded before finishing.
+notes: >
+  This is the core use case — tests availability handling, form fill,
+  and graceful fallback when the exact request can't be met exactly.

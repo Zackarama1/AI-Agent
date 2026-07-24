@@ -1,0 +1,14 @@
+# Example task: general form-filling / sign-up.
+# Swap start_url and instruction for a real newsletter/waitlist form you're
+# happy to test against. This template uses a placeholder — replace it.
+
+name: example_newsletter_signup
+start_url: "https://example.com/newsletter-signup"
+instruction: >
+  Sign up for the newsletter using the name "Test User" and the email
+  "test-agent@example.com". Do not submit any payment information — this
+  task should not require any. If the form asks for anything else optional,
+  leave it blank. Confirm submission succeeded before finishing.
+notes: >
+  Good first test because there's no availability-matching logic and no
+  payment step — just measures raw form-filling reliability.
