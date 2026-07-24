@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Tasting Room — Reservations (demo)</title>
+  <style>
+    :root { --line:#e2e0ea; --ink:#20202e; --muted:#6b6b80; --brand:#6d5cf0; --ok:#1f9d63; }
+    body { font-family: system-ui, -apple-system, sans-serif; color: var(--ink); max-width: 460px; margin: 0 auto; padding: 24px 18px 60px; }
+    h1 { font-size: 22px; margin: 0 0 2px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 14px 0 5px; text-transform: uppercase; letter-spacing: .04em; }
+    input, select { width: 100%; padding: 11px 12px; font-size: 15px; border: 1px solid var(--line); border-radius: 10px; box-sizing: border-box; background: #fff; color: var(--ink); }
+    button { margin-top: 18px; width: 100%; padding: 13px; font-size: 15px; font-weight: 700; color: #fff; background: var(--brand); border: none; border-radius: 11px; cursor: pointer; }
+    button.secondary { background: #f1f0f8; color: var(--ink); border: 1px solid var(--line); }
+    .row { display: flex; gap: 12px; } .row > div { flex: 1; }
+    .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .slot { flex: none; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+    .slot[disabled] { opacity: .4; text-decoration: line-through; cursor: not-allowed; }
+    .slot.sel { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .hidden { display: none; }
+    #done { margin-top: 20px; padding: 16px; background: #e9f7ef; border: 1px solid var(--ok); border-radius: 12px; }
+    #done h2 { margin: 0 0 4px; font-size: 17px; color: var(--ok); }
+    .note { font-size: 12px; color: var(--muted); margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>The Tasting Room</h1>
+  <p class="sub">Reservations · demo restaurant (runs locally)</p>
+
+  <div id="step1">
+    <div class="row">
+      <div>
+        <label for="party">Party size</label>
+        <select id="party" name="party">
+          <option value="">Select…</option>
+          <option>1 guest</option><option>2 guests</option><option>3 guests</option>
+          <option>4 guests</option><option>5 guests</option><option>6 guests</option>
+        </select>
+      </div>
+      <div>
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date">
+      </div>
+    </div>
+    <label for="time">Preferred time</label>
+    <select id="time" name="time">
+      <option value="">Select…</option>
+      <option>5:30 PM</option><option>6:00 PM</option><option>6:30 PM</option>
+      <option>7:00 PM</option><option>7:30 PM</option><option>8:00 PM</option>
+      <option>8:30 PM</option><option>9:00 PM</option>
+    </select>
+    <button id="check" type="button">Check availability</button>
+  </div>
+
+  <div id="step2" class="hidden">
+    <label>Available tables near your time</label>
+    <div class="slots" id="slots"></div>
+  </div>
+
+  <div id="step3" class="hidden">
+    <label for="name">Name on reservation</label>
+    <input id="name" name="name" type="text" placeholder="Full name">
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" type="tel" placeholder="Mobile number">
+    <label for="requests">Special requests</label>
+    <input id="requests" name="requests" type="text" placeholder="Window seat, allergies…">
+    <button id="confirm" type="button">Confirm reservation</button>
+    <button id="back" type="button" class="secondary" style="margin-top:10px">Back</button>
+  </div>
+
+  <div id="done" class="hidden">
+    <h2>Reservation confirmed ✓</h2>
+    <div id="summary"></div>
+  </div>
+
+  <p class="note">This is a self-contained practice booking flow for the agent —
+    no data leaves this machine, nothing is actually booked.</p>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    // Deterministic "availability": every listed time is open except 8:00 PM.
+    const UNAVAILABLE = new Set(["8:00 PM"]);
+    let chosenSlot = null;
+
+    $("check").onclick = () => {
+      const pref = $("time").value;
+      if (!$("party").value || !$("date").value || !pref) { alert("Pick party, date and time first."); return; }
+      const times = ["6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM","8:30 PM"];
+      const slots = $("slots"); slots.innerHTML = "";
+      times.forEach((t) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "slot" + (t === pref ? "" : ""); b.textContent = t;
+        if (UNAVAILABLE.has(t)) b.disabled = true;
+        b.onclick = () => {
+          chosenSlot = t;
+          [...slots.children].forEach((c) => c.classList.remove("sel"));
+          b.classList.add("sel"); $("step3").classList.remove("hidden");
+          $("step3").scrollIntoView({ behavior: "smooth" });
+        };
+        slots.appendChild(b);
+      });
+      $("step2").classList.remove("hidden");
+      $("step2").scrollIntoView({ behavior: "smooth" });
+    };
+
+    $("back").onclick = () => $("step3").classList.add("hidden");
+    $("confirm").onclick = () => {
+      if (!$("name").value) { alert("Add a name."); return; }
+      $("summary").innerHTML =
+        `${$("party").value} · ${$("date").value} at ${chosenSlot || $("time").value}<br>` +
+        `Under ${$("name").value}${$("phone").value ? " · " + $("phone").value : ""}` +
+        `${$("requests").value ? "<br>Note: " + $("requests").value : ""}`;
+      $("step1").classList.add("hidden"); $("step2").classList.add("hidden");
+      $("step3").classList.add("hidden"); $("done").classList.remove("hidden");
+      $("done").scrollIntoView({ behavior: "smooth" });
+    };
+  </script>
+</body>
+</html>

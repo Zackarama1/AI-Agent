@@ -37,6 +37,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import store
+from adapters import adapter_for
 from agent_service import run_task_events
 from jobs import JOBS, Job
 from nlu import parse_booking
@@ -117,6 +118,7 @@ async def _drive(job: Job, reservation_id: str | None = None):
 
 def _booking_task(res: dict) -> dict:
     when = f"{res.get('date')} {res.get('time')}".strip()
+    adapter = adapter_for(res.get("start_url", ""), res.get("venue", ""))
     instruction = (
         f"Book a table for {res.get('party_size')} at {res.get('venue') or 'the venue'} "
         f"on {when} under the name '{res.get('name') or 'the guest'}'"
@@ -125,9 +127,26 @@ def _booking_task(res: dict) -> dict:
         + ". If the exact time is unavailable, pick the closest within 30 minutes and note it. "
         "If a card is required to hold the table, call submit_payment (simulated). "
         "Confirm the booking before finishing."
+        + (f"\n\nSite notes: {adapter['hints']}" if adapter.get("hints") else "")
     )
-    # Default to the built-in demo form so a keyless dry-run always has a target.
-    return {"instruction": instruction, "start_url": res.get("start_url") or "/demo/form"}
+    # adapter resolves a blank URL to the built-in demo restaurant, so a keyless
+    # dry-run always has a realistic multi-step target. The structured hints let
+    # the dry-run filler use the real time/guest without scraping the prose.
+    return {
+        "instruction": instruction,
+        "start_url": adapter["start_url"],
+        "time_hint": _to_ampm(res.get("time", "")),
+        "guest": {"name": res.get("name", ""), "phone": res.get("phone", "")},
+    }
+
+
+def _to_ampm(t: str) -> str:
+    try:
+        h, m = (int(x) for x in t.split(":"))
+        ap = "PM" if h >= 12 else "AM"
+        return f"{((h + 11) % 12) + 1}:{m:02d} {ap}"
+    except (ValueError, AttributeError):
+        return ""
 
 
 # ---------- basic ----------
@@ -277,6 +296,11 @@ async def stream_run(run_id: str):
 @app.get("/demo/form")
 def demo_form():
     return FileResponse(WEB / "demo_form.html")
+
+
+@app.get("/demo/reserve")
+def demo_reserve():
+    return FileResponse(WEB / "reserve_demo.html")
 
 
 # Serve the PWA at the root LAST so API routes take precedence.

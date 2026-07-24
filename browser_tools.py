@@ -53,9 +53,22 @@ class BrowserSession:
             "a, button, input, select, textarea, [role=button]",
             """els => els.slice(0, 80).map((el, i) => {
                 el.setAttribute('data-agent-id', String(i));
-                const label = el.innerText || el.getAttribute('placeholder')
-                    || el.getAttribute('aria-label') || el.getAttribute('name') || '';
-                return `[${i}] <${el.tagName.toLowerCase()}> ${label.trim().slice(0,60)}`;
+                const tag = el.tagName.toLowerCase();
+                // For <select>, innerText is the whole option list (multi-line),
+                // which would break the one-line-per-element format — use the
+                // accessible name instead and list options separately.
+                let label = tag === 'select'
+                    ? (el.getAttribute('aria-label') || el.getAttribute('name') || '')
+                    : (el.innerText || el.getAttribute('placeholder')
+                       || el.getAttribute('aria-label') || el.getAttribute('name') || '');
+                label = label.replace(/\\s+/g, ' ').trim().slice(0, 60);
+                let line = `[${i}] <${tag}> ${label}`;
+                if (tag === 'select') {
+                    const opts = [...el.options].slice(0, 14)
+                        .map(o => o.textContent.trim()).filter(Boolean);
+                    line += ` options: [${opts.join(' | ')}]`;
+                }
+                return line;
             }).join('\\n')"""
         )
         body_text = await self.page.inner_text("body")
@@ -72,6 +85,17 @@ class BrowserSession:
         el = self.page.locator(f"[data-agent-id='{element_id}']")
         await el.fill(text, timeout=10000)
         return f"Filled element {element_id} with '{text}'"
+
+    async def select_option(self, element_id: str, option: str) -> str:
+        """Choose an option in a <select> dropdown. Tries to match by visible
+        label first, then by value — reservation forms label options as text
+        ('7:00 PM', 'Party of 4') so label-matching is the common case."""
+        el = self.page.locator(f"[data-agent-id='{element_id}']")
+        try:
+            await el.select_option(label=option, timeout=8000)
+        except Exception:
+            await el.select_option(value=option, timeout=8000)
+        return f"Selected '{option}' in element {element_id}"
 
     async def screenshot(self, path: str = "debug_screenshot.png") -> str:
         await self.page.screenshot(path=path)
@@ -132,6 +156,22 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "select_option",
+        "description": (
+            "Choose an option in a <select> dropdown by its [id] from read_page. "
+            "Pass the visible option text (e.g. '7:00 PM' or 'Party of 4'). "
+            "read_page lists each select's available options."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "element_id": {"type": "string"},
+                "option": {"type": "string"},
+            },
+            "required": ["element_id", "option"],
+        },
+    },
+    {
         "name": "screenshot",
         "description": "Take a screenshot if you're stuck and need to visually inspect the page.",
         "input_schema": {"type": "object", "properties": {}},
@@ -168,6 +208,8 @@ async def execute_tool(session: BrowserSession, name: str, tool_input: dict) -> 
         return await session.click(tool_input["element_id"])
     if name == "fill":
         return await session.fill(tool_input["element_id"], tool_input["text"])
+    if name == "select_option":
+        return await session.select_option(tool_input["element_id"], tool_input["option"])
     if name == "screenshot":
         return await session.screenshot()
     if name == "submit_payment":

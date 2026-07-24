@@ -22,6 +22,7 @@ Event shapes (all dicts, JSON-serialisable):
 import asyncio
 import os
 import re
+from datetime import datetime, timedelta
 from typing import AsyncIterator
 
 from browser_tools import BrowserSession, TOOL_DEFINITIONS, execute_tool
@@ -124,62 +125,206 @@ async def _run_real(session: BrowserSession, task: dict) -> AsyncIterator[dict]:
     yield {"type": "result", "outcome": "failed", "note": "hit max step limit", "steps": MAX_STEPS}
 
 
-# ---- dry run: scripted, no model, proves the browser + UI pipeline ----
+# ---- dry run: scripted multi-step form filler, no model ----
+#
+# A generic loop that reads the page, fills text inputs, sets dropdowns, and
+# clicks the most sensible button — repeating so it can walk multi-step flows
+# (party/date/time -> availability -> guest details -> confirm). Proves the
+# whole browser + tool + UI pipeline against a realistic form, with no API key.
 
-_ELEMENT_RE = re.compile(r"\[(\d+)\]\s*<(\w+)>")
+_ELEMENT_RE = re.compile(r"^\[(\d+)\]\s+<(\w+)>\s*(.*)$", re.M)
+_OPTIONS_RE = re.compile(r"options:\s*\[(.*)\]\s*$")
+_TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\s*(?:am|pm)\b", re.I)
+
+# Specific success phrases — must appear ONLY on a completed booking/signup,
+# not in disclaimers or button labels (e.g. "nothing is reserved", "Confirm").
+_CONFIRM_WORDS = ("subscribed", "reservation confirmed", "booking confirmed",
+                  "you're all set", "you are all set")
+_PRIMARY_WORDS = ("check availability", "continue", "next", "find a table", "search")
+_SUBMIT_WORDS = ("confirm", "reserve", "book", "subscribe", "submit", "place")
+_AVOID_WORDS = ("back", "cancel", "close", "sign in", "log in", "login")
 
 
-def _parse_elements(read_output: str):
-    """Pull (id, tag) pairs out of read_page()'s element listing."""
-    inputs, buttons = [], []
-    for eid, tag in _ELEMENT_RE.findall(read_output):
-        if tag in ("input", "textarea"):
-            inputs.append(eid)
-        elif tag == "button":
-            buttons.append(eid)
-    return inputs, buttons
+def _parse_full(read_output: str) -> list[dict]:
+    els = []
+    for eid, tag, rest in _ELEMENT_RE.findall(read_output):
+        options = []
+        label = rest.strip()
+        m = _OPTIONS_RE.search(rest)
+        if m:
+            options = [o.strip() for o in m.group(1).split("|") if o.strip()]
+            label = rest[: m.start()].strip()
+        els.append({"id": eid, "tag": tag, "label": label, "options": options})
+    return els
 
 
-_CONFIRM_WORDS = ("subscribed", "thank", "success", "confirmed", "you're in", "welcome")
+def _pick_option(el: dict, time_hint: str) -> str | None:
+    opts = [o for o in el["options"] if o and not o.lower().startswith("select")]
+    if not opts:
+        return None
+    joined = " ".join(opts).lower()
+    if "guest" in joined or "party" in joined:            # party size
+        return next((o for o in opts if o.strip().startswith("2")), opts[0])
+    if _TIME_RE.search(joined):                            # time picker
+        return next((o for o in opts if _norm(o) == _norm(time_hint)), None) or \
+               next((o for o in opts if o.strip().startswith("7:")), opts[0])
+    return opts[0]
+
+
+def _value_for(label: str, vals: dict) -> str | None:
+    l = label.lower()
+    if "email" in l:
+        return "test-agent@example.com"
+    if "phone" in l or "mobile" in l or "tel" in l:
+        return vals.get("phone") or "555-0100"
+    if "name" in l:
+        return vals.get("name") or "Test Guest"
+    if "date" in l:
+        return (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+    return None  # leave notes / unknown fields blank
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", "", (s or "").lower())
 
 
 async def _run_dry(session: BrowserSession, task: dict) -> AsyncIterator[dict]:
-    yield {
-        "type": "assistant",
-        "text": ("Dry run (no model call): I'll navigate, read the page, fill the "
-                 "first text fields, submit, and check for a confirmation."),
-    }
+    time_hint = task.get("time_hint") or _time_hint_from_task(task)
+    guest = task.get("guest") or {}
+    yield {"type": "assistant",
+           "text": ("Dry run (no model call): I'll walk the form step by step — set the "
+                    "dropdowns, fill the details, pick an available slot, and confirm.")}
 
+    step = 1
     r = await session.navigate(task["start_url"])
-    yield {"type": "action", "tool": "navigate", "input": {"url": task["start_url"]},
-           "result": r, "step": 1}
+    yield {"type": "action", "tool": "navigate", "input": {"url": task["start_url"]}, "result": r, "step": step}
 
-    page = await session.read_page()
-    yield {"type": "action", "tool": "read_page", "input": {}, "result": _short(page), "step": 2}
+    done_selects, done_text, clicked, slot_chosen = set(), set(), set(), False
+    confirmed = False
 
-    inputs, buttons = _parse_elements(page)
-    values = ["Test User", "test-agent@example.com"]
-    step = 3
-    for eid, val in zip(inputs[:2], values):
-        r = await session.fill(eid, val)
-        yield {"type": "action", "tool": "fill", "input": {"element_id": eid, "text": val},
-               "result": r, "step": step}
+    for _ in range(8):
         step += 1
+        page = await session.read_page()
+        yield {"type": "action", "tool": "read_page", "input": {}, "result": _short(page), "step": step}
+        if any(w in page.lower() for w in _CONFIRM_WORDS):
+            confirmed = True
+            break
 
-    if buttons:
-        r = await session.click(buttons[0])
-        yield {"type": "action", "tool": "click", "input": {"element_id": buttons[0]},
-               "result": r, "step": step}
-        step += 1
+        els = _parse_full(page)
+        acted = False
 
-    page2 = await session.read_page()
-    yield {"type": "action", "tool": "read_page", "input": {}, "result": _short(page2), "step": step}
+        # 1) dropdowns (only ones on screen now)
+        for e in els:
+            sig = e["label"] + "|" + "|".join(e["options"])
+            if e["tag"] != "select" or sig in done_selects:
+                continue
+            if not await _visible(session, e["id"]):
+                continue
+            opt = _pick_option(e, time_hint)
+            if not opt:
+                continue
+            try:
+                step += 1
+                r = await session.select_option(e["id"], opt)
+                yield {"type": "action", "tool": "select_option",
+                       "input": {"element_id": e["id"], "option": opt}, "result": r, "step": step}
+                done_selects.add(sig); acted = True
+            except Exception:
+                pass
 
-    ok = any(w in page2.lower() for w in _CONFIRM_WORDS)
+        # 2) text / date inputs — skip anything not visible yet (revealed later)
+        for e in els:
+            if e["tag"] not in ("input", "textarea") or e["label"] in done_text:
+                continue
+            val = _value_for(e["label"], guest)
+            if not val or not await _visible(session, e["id"]):
+                continue
+            try:
+                step += 1
+                r = await session.fill(e["id"], val)
+                yield {"type": "action", "tool": "fill",
+                       "input": {"element_id": e["id"], "text": val}, "result": r, "step": step}
+                done_text.add(e["label"]); acted = True
+            except Exception:
+                pass
+
+        # 3) one button per round (must be visible + enabled)
+        btn, is_slot = await _pick_button(session, els, clicked, slot_chosen, time_hint)
+        if btn:
+            try:
+                step += 1
+                r = await session.click(btn["id"])
+                yield {"type": "action", "tool": "click",
+                       "input": {"element_id": btn["id"]}, "result": r, "step": step}
+                clicked.add(_norm(btn["label"]))
+                if is_slot:
+                    slot_chosen = True
+                acted = True
+            except Exception:
+                pass
+
+        if not acted:
+            break
+
     yield {
         "type": "result",
-        "outcome": "success" if ok else "needs_human",
-        "note": ("Confirmation text found on the page." if ok
-                 else "No confirmation detected — a human should verify."),
+        "outcome": "success" if confirmed else "needs_human",
+        "note": ("Reservation confirmed on the page." if confirmed
+                 else "Walked the form but saw no confirmation — a human should verify."),
         "steps": step,
     }
+
+
+async def _visible(session: BrowserSession, eid: str) -> bool:
+    try:
+        return await session.page.locator(f"[data-agent-id='{eid}']").is_visible()
+    except Exception:
+        return False
+
+
+async def _clickable(session: BrowserSession, eid: str) -> bool:
+    try:
+        loc = session.page.locator(f"[data-agent-id='{eid}']")
+        return await loc.is_visible() and await loc.is_enabled()
+    except Exception:
+        return False
+
+
+async def _pick_button(session, els: list[dict], clicked: set, slot_chosen: bool, time_hint: str):
+    buttons = [e for e in els if e["tag"] in ("button", "a")]
+
+    async def ok(b):
+        if _norm(b["label"]) in clicked or any(w in b["label"].lower() for w in _AVOID_WORDS):
+            return False
+        return await _clickable(session, b["id"])
+
+    # primary progression button (e.g. "Check availability")
+    for b in buttons:
+        if any(w in b["label"].lower() for w in _PRIMARY_WORDS) and await ok(b):
+            return b, False
+    # an available (enabled) time-slot chip — prefer the requested time
+    if not slot_chosen:
+        slots = [b for b in buttons if _TIME_RE.search(b["label"])]
+        for b in slots:  # first pass: exact requested time
+            if _norm(b["label"]) == _norm(time_hint) and await ok(b):
+                return b, True
+        for b in slots:  # otherwise the closest enabled slot
+            if await ok(b):
+                return b, True
+    # final submit
+    for b in buttons:
+        if any(w in b["label"].lower() for w in _SUBMIT_WORDS) and await ok(b):
+            return b, False
+    return None, False
+
+
+def _time_hint_from_task(task: dict) -> str:
+    """Best-effort time like '7:00 PM' out of the instruction, else default."""
+    m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", task.get("instruction", ""), re.I)
+    if m:
+        return f"{int(m.group(1))}:{m.group(2) or '00'} {m.group(3).upper()}"
+    m = re.search(r"\b(\d{1,2}):(\d{2})\b", task.get("instruction", ""))
+    if m:
+        h = int(m.group(1)); ap = "PM" if h >= 12 else "AM"; h = ((h + 11) % 12) + 1
+        return f"{h}:{m.group(2)} {ap}"
+    return "7:00 PM"

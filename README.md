@@ -168,11 +168,24 @@ calendar. All bookings persist in a local SQLite DB (`data/app.db`).
 
 ### Booking mechanisms
 
-- **AI form-filling (built):** the existing agent drives a real browser to fill
-  the venue's booking form. Point a reservation's `start_url` at a real booking
-  page; leave it blank to use the built-in demo form.
+- **AI form-filling (built):** the agent drives a real browser to complete the
+  venue's booking form — including **dropdowns** (party size / time via the
+  `select_option` tool), **availability slots**, and multi-step flows. Leave a
+  reservation's `start_url` blank and it books the built-in demo restaurant
+  (`/demo/reserve`: party/date/time → availability → guest details → confirm);
+  point it at a real page to book that.
+- **Per-venue adapters (`adapters.py`):** a small registry that maps a URL/venue
+  to a `start_url` plus short, site-specific hints injected into the agent's
+  task (e.g. how OpenTable/Resy/Tock time pickers behave). Add an entry per site
+  you support; unknown sites pass through generically.
 - **AI phone call (stub):** `POST /api/reservations/{id}/call` returns
   `configured: false` until you wire a voice provider — see below.
+
+> The keyless **dry-run** now walks the whole multi-step reservation itself
+> (sets the dropdowns, checks availability, picks the requested time — skipping
+> unavailable slots — fills guest details and confirms), so you can watch a full
+> booking with no API key. With a key set, the real Claude agent does the same
+> with judgement.
 
 ## Getting the rest online (what you still need)
 
@@ -277,6 +290,7 @@ booking-agent-poc/
 ├── jobs.py                  # In-memory run store, fans events out to SSE clients
 ├── nlu.py                   # Natural-language/voice -> structured booking intent
 ├── store.py                 # SQLite reservations + .ics calendar export
+├── adapters.py              # Per-venue booking adapters (start_url + hints)
 ├── web/                     # The Concierge PWA (assistant + calendar + activity)
 │   ├── index.html
 │   ├── styles.css
@@ -284,7 +298,8 @@ booking-agent-poc/
 │   ├── manifest.webmanifest
 │   ├── sw.js                # service worker (installable / offline shell)
 │   ├── icon.svg
-│   └── demo_form.html       # built-in local practice form (/demo/form)
+│   ├── demo_form.html       # built-in signup practice form (/demo/form)
+│   └── reserve_demo.html    # built-in reservation practice flow (/demo/reserve)
 ├── data/                    # runtime SQLite db (gitignored)
 ├── tasks/
 │   ├── example_form_signup.yaml
