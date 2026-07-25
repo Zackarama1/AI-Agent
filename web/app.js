@@ -5,42 +5,96 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 
 const API_BASE = ((window.APP_CONFIG && window.APP_CONFIG.apiBase) || "").replace(/\/$/, "");
-const api = (p, o) => fetch(API_BASE ? `${API_BASE}/${p}` : p, o).then((r) => (r.ok ? r.json() : Promise.reject(r)));
 const urlOf = (p) => (API_BASE ? `${API_BASE}/${p}` : p);
+function api(p, opts = {}) {
+  const h = Object.assign({}, opts.headers);
+  if (state.token) h["Authorization"] = "Bearer " + state.token;
+  return fetch(urlOf(p), Object.assign({}, opts, { headers: h }))
+    .then((r) => (r.ok ? r.json() : r.json().catch(() => ({})).then((b) => Promise.reject(Object.assign(r, { body: b })))));
+}
 
 const PHOTO = {
-  ember:  "linear-gradient(140deg,#f0b168,#d9743f 55%,#7c2f2a)",
-  sage:   "linear-gradient(150deg,#bcd8a6,#6fa96f 52%,#3c6b58)",
-  citrus: "linear-gradient(140deg,#f6d488,#e79b3f 55%,#b5532e)",
-  wine:   "linear-gradient(150deg,#c98a9b,#8f3f5c 55%,#3a1f36)",
-  slate:  "linear-gradient(150deg,#b8c2cc,#6f8091 52%,#39434f)",
-  cream:  "linear-gradient(150deg,#efe2c6,#d8b986 55%,#a97f52)",
+  ember: "linear-gradient(140deg,#f0b168,#d9743f 55%,#7c2f2a)", sage: "linear-gradient(150deg,#bcd8a6,#6fa96f 52%,#3c6b58)",
+  citrus: "linear-gradient(140deg,#f6d488,#e79b3f 55%,#b5532e)", wine: "linear-gradient(150deg,#c98a9b,#8f3f5c 55%,#3a1f36)",
+  slate: "linear-gradient(150deg,#b8c2cc,#6f8091 52%,#39434f)", cream: "linear-gradient(150deg,#efe2c6,#d8b986 55%,#a97f52)",
 };
-const TOOL_ICON = { navigate: "🧭", read_page: "👀", click: "👆", fill: "⌨️", select_option: "⌨️", screenshot: "📸", submit_payment: "💳" };
+const AV_COLORS = ["#3fcabb", "#ff7a66", "#6c5ce7", "#f6b73c", "#4a90d9", "#e26aa0"];
+const EVT_COLORS = ["", "coral", "plum"];
 
-const state = { venues: [], reservations: [], saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), hasKey: false, mode: "" };
+const state = { token: localStorage.getItem("token") || "", user: null, venues: [], reservations: [],
+  saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
+  calMonth: firstOfMonth(new Date()), calSel: ymd(new Date()) };
+
+/* ================= AUTH ================= */
+let authMode = "in";
+function showAuth() { $("#auth").hidden = false; $("#app").hidden = true; }
+function showApp() { $("#auth").hidden = true; $("#app").hidden = false; }
 
 async function boot() {
-  try { const h = await api("api/health"); state.hasKey = h.has_key; state.mode = h.has_key ? "Live AI agent" : "Dry run (demo)"; } catch (_) {}
+  wireAuth();
+  if (state.token) {
+    try { state.user = await api("api/auth/me"); startApp(); return; }
+    catch (_) { state.token = ""; localStorage.removeItem("token"); }
+  }
+  showAuth();
+}
+function wireAuth() {
+  $("#segIn").addEventListener("click", () => setAuthMode("in"));
+  $("#segUp").addEventListener("click", () => setAuthMode("up"));
+  $("#authForm").addEventListener("submit", submitAuth);
+}
+function setAuthMode(m) {
+  authMode = m;
+  $("#segIn").classList.toggle("on", m === "in");
+  $("#segUp").classList.toggle("on", m === "up");
+  $("#nameField").hidden = m === "in";
+  $("#au-submit").textContent = m === "in" ? "Sign in" : "Create account";
+  $("#au-pass").autocomplete = m === "in" ? "current-password" : "new-password";
+  $("#au-error").textContent = "";
+}
+async function submitAuth(e) {
+  e.preventDefault();
+  const email = $("#au-email").value.trim(), pass = $("#au-pass").value, name = $("#au-name").value.trim();
+  const err = $("#au-error"); err.textContent = "";
+  const btn = $("#au-submit"); btn.disabled = true; const label = btn.textContent; btn.textContent = "…";
+  try {
+    const path = authMode === "in" ? "api/auth/login" : "api/auth/signup";
+    const body = authMode === "in" ? { email, password: pass } : { email, password: pass, name };
+    const res = await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    state.token = res.token; state.user = res.user; localStorage.setItem("token", res.token);
+    startApp();
+  } catch (r) {
+    err.textContent = (r && r.body && r.body.detail) || "Something went wrong. Try again.";
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+function logout() { state.token = ""; state.user = null; localStorage.removeItem("token"); showAuth(); }
+
+/* ================= APP ================= */
+async function startApp() {
+  showApp();
+  try { const h = await api("api/health"); state.mode = h.has_key ? (h.hosted_browser ? "Live agent · hosted" : "Live agent") : "Dry run (demo)"; } catch (_) {}
   $$(".tab").forEach((t) => t.addEventListener("click", () => switchView(t.dataset.view)));
-  $("#goSaved").addEventListener("click", () => switchView("reservations"));
   $("#askForm").addEventListener("submit", (e) => { e.preventDefault(); askConcierge($("#ask").value); });
   $("#mic").addEventListener("click", toggleVoice);
+  $("#logout").addEventListener("click", logout);
+  $("#calPrev").addEventListener("click", () => moveMonth(-1));
+  $("#calNext").addEventListener("click", () => moveMonth(1));
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   await loadVenues();
   await loadReservations();
   paintProfile();
 }
-
 function switchView(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
-  if (name === "reservations") loadReservations();
+  if (name === "calendar") renderCalendar();
+  if (name === "community") loadCommunity();
   if (name === "profile") paintProfile();
-  window.scrollTo(0, 0);
+  $("#app").scrollTop = 0; window.scrollTo(0, 0);
 }
 
-/* ---------- venues ---------- */
+/* ---------- venues / discover ---------- */
 async function loadVenues() {
   try { state.venues = await api("api/venues"); } catch (_) { state.venues = []; }
   renderVenues();
@@ -49,11 +103,9 @@ function renderVenues() {
   const list = $("#list"); list.innerHTML = "";
   $("#count").textContent = `${state.venues.length} places with tables`;
   state.venues.forEach((v, i) => {
-    const card = el("div", "hotel");
-    card.style.animationDelay = `${i * 45}ms`;
-    const slots = v.slots.slice(0, 3).map((s) =>
-      `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("") +
-      `<button class="slot-chip more" data-open="1">More…</button>`;
+    const card = el("div", "hotel"); card.style.animationDelay = `${i * 45}ms`;
+    const slots = v.slots.slice(0, 3).map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("")
+      + `<button class="slot-chip more" data-open="1">More…</button>`;
     card.innerHTML = `
       <div class="photo" style="background-image:${PHOTO[v.photo] || PHOTO.ember}">
         <button class="fav ${state.saved.has(v.id) ? "on" : ""}" aria-label="Save">
@@ -61,10 +113,7 @@ function renderVenues() {
         </button>
       </div>
       <div class="body">
-        <div class="row1">
-          <h3 class="name">${v.name}</h3>
-          <div class="price-level">${v.price_level}</div>
-        </div>
+        <div class="row1"><h3 class="name">${v.name}</h3><div class="price-level">${v.price_level}</div></div>
         <div class="loc"><span class="pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6c0 4 6 10 6 10s6-6 6-10a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg></span>${v.cuisine} <span class="dot">·</span> ${v.neighborhood}</div>
         <div class="rating">${stars(v.rating)}<span class="reviews">${v.reviews} Reviews</span></div>
         <div class="slots-row">${slots}</div>
@@ -72,85 +121,89 @@ function renderVenues() {
     card.querySelector(".fav").addEventListener("click", (e) => { e.stopPropagation(); toggleSaved(v.id); });
     card.addEventListener("click", () => openVenue(v));
     card.querySelectorAll(".slot-chip").forEach((chip) => chip.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (chip.dataset.open) return openVenue(v);
-      quickBook(v, chip.dataset.slot);
+      e.stopPropagation(); if (chip.dataset.open) return openVenue(v); quickBook(v, chip.dataset.slot);
     }));
     list.appendChild(card);
   });
 }
-function stars(n) {
-  let s = '<span class="stars">';
+function stars(n) { let s = '<span class="stars">';
   for (let i = 1; i <= 5; i++) s += `<svg class="${i <= n ? "" : "off"}" viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 17.8 5.9 20.9l1.5-6.7L2.3 9.6l6.8-.7z"/></svg>`;
-  return s + "</span>";
-}
-function toggleSaved(id) {
-  state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
-  localStorage.setItem("saved", JSON.stringify([...state.saved]));
-  renderVenues();
-}
+  return s + "</span>"; }
+function toggleSaved(id) { state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
+  localStorage.setItem("saved", JSON.stringify([...state.saved])); renderVenues(); }
 
-/* ---------- venue detail ---------- */
-function openVenue(v) {
+/* ---------- venue detail + recs ---------- */
+async function openVenue(v) {
   const slots = v.slots.map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("");
   $("#sheetCard").innerHTML = `
     <div class="sheet-photo" style="background-image:${PHOTO[v.photo] || PHOTO.ember}">
-      <button class="close" id="closeSheet" aria-label="Close"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button class="close" id="closeSheet"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="sheet-body">
-      <div class="row1" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
-        <h2>${v.name}</h2><div class="price-level" style="font-size:16px">${v.price_level}</div></div>
+      <div class="row1" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><h2>${v.name}</h2><div class="price-level" style="font-size:16px">${v.price_level}</div></div>
       <div class="loc" style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;margin-top:4px">${v.cuisine} · ${v.neighborhood} · ${v.distance}</div>
       <div class="rating" style="margin-top:8px;display:flex;gap:8px;align-items:center">${stars(v.rating)}<span class="reviews">${v.reviews} Reviews</span></div>
       <div class="amenities">${(v.amenities || []).map((a) => `<span class="chip">${a}</span>`).join("")}</div>
       <p class="desc">${v.description || ""}</p>
       <div style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 2px 8px">Available tonight · party of 2</div>
       <div class="slots-row" id="detailSlots">${slots}</div>
-      <div id="bookArea"><button class="cta ghost" id="closeBtn" style="margin-top:16px">Close</button></div>
+      <div style="font-size:13px;color:var(--muted);font-weight:700;margin:20px 2px 10px">Recommendations</div>
+      <div class="recs-in-detail" id="venueRecs"><div class="muted" style="margin:0 2px">Loading…</div></div>
+      <div class="add-rec"><input id="recInput" placeholder="Recommend this place…" maxlength="180"><button id="recSend">Post</button></div>
+      <button class="cta ghost" id="closeBtn" style="margin-top:16px">Close</button>
     </div>`;
   $("#sheet").hidden = false;
   $("#closeSheet").addEventListener("click", closeSheet);
   $("#closeBtn").addEventListener("click", closeSheet);
-  $$("#detailSlots .slot-chip").forEach((chip) =>
-    chip.addEventListener("click", () => bookNow({ venue: v.name, party_size: 2, time: to24(chip.dataset.slot),
-      date: todayISO(), notes: "Party of 2", start_url: v.booking_url || "",
-      source_prompt: `Book ${v.name} for 2 at ${chip.dataset.slot}` }, v.name, chip.dataset.slot)));
+  $$("#detailSlots .slot-chip").forEach((chip) => chip.addEventListener("click", () => quickBook(v, chip.dataset.slot)));
+  $("#recSend").addEventListener("click", () => postRec(v));
+  loadVenueRecs(v.id);
+}
+async function loadVenueRecs(vid) {
+  let recs = [];
+  try { recs = await api(`api/venues/${vid}/recommendations`); } catch (_) {}
+  const wrap = $("#venueRecs"); if (!wrap) return;
+  wrap.innerHTML = recs.length ? "" : `<div class="muted" style="margin:0 2px">Be the first to recommend it.</div>`;
+  recs.forEach((r) => wrap.appendChild(recCard(r, false)));
+}
+async function postRec(v) {
+  const inp = $("#recInput"); const text = inp.value.trim(); if (!text) return;
+  inp.value = "";
+  try { await api(`api/venues/${v.id}/recommendations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, rating: 5 }) });
+    loadVenueRecs(v.id); toast("Thanks for the recommendation!"); } catch (_) { toast("Couldn't post that."); }
 }
 function closeSheet() { $("#sheet").hidden = true; }
 function quickBook(v, slot) {
   bookNow({ venue: v.name, party_size: 2, time: to24(slot), date: todayISO(), notes: "Party of 2",
-    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for 2 at ${slot}` }, v.name, slot);
+    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for 2 at ${slot}` }, v.name, v.photo, slot);
 }
 
-/* ---------- AI ask -> parse -> confirm ---------- */
+/* ---------- AI ask ---------- */
 async function askConcierge(text) {
   text = (text || "").trim(); if (!text) return;
-  openSheetShell("One sec…", `<div class="book-head"><h3>Reading your request</h3><span class="spin" style="border-top-color:var(--teal)"></span></div>`);
-  let intent;
-  try { intent = await api("api/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: text }) }); }
+  openSheetBody(`<div class="book-head"><h3>Reading your request</h3><span class="spin" style="border-top-color:var(--teal)"></span></div>`);
+  let it;
+  try { it = await api("api/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: text }) }); }
   catch (_) { closeSheet(); toast("Couldn't reach the concierge."); return; }
-  const a = (intent.assumptions || []).length ? `<div class="ask-hint" style="color:var(--teal-2);text-align:left">💡 ${intent.assumptions.join(" ")}</div>` : "";
-  $("#sheetCard").innerHTML = `
-    <div class="sheet-body" style="padding-top:22px">
-      <div class="book-head"><h3>Confirm your table</h3><button class="close" id="closeSheet" style="position:static;box-shadow:none;background:var(--card)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-      <div class="amenities" style="margin:6px 0 12px">
-        ${fieldChip("Venue", "venue", intent.venue || "a nearby spot")}
-        ${fieldChip("Party", "party", intent.party_size)}
-        ${fieldChip("Date", "date", intent.date)}
-        ${fieldChip("Time", "time", to12(intent.time))}
-      </div>${a}
-      <button class="cta" id="confirmBook">✨ Book with AI</button>
-      <button class="cta ghost" id="closeBtn">Cancel</button>
-    </div>`;
-  $("#sheet").hidden = false;
+  const a = (it.assumptions || []).length ? `<div class="ask-hint" style="color:var(--teal-2);text-align:left">💡 ${it.assumptions.join(" ")}</div>` : "";
+  openSheetBody(`
+    <div class="book-head"><h3>Confirm your table</h3><button class="close" id="closeSheet" style="position:static;box-shadow:none;background:var(--card)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="amenities" style="margin:6px 0 12px">
+      <span class="chip"><b style="color:var(--muted);font-weight:600">Venue:</b> ${it.venue || "a nearby spot"}</span>
+      <span class="chip"><b style="color:var(--muted);font-weight:600">Party:</b> ${it.party_size}</span>
+      <span class="chip"><b style="color:var(--muted);font-weight:600">Date:</b> ${dateLabel(it.date)}</span>
+      <span class="chip"><b style="color:var(--muted);font-weight:600">Time:</b> ${to12(it.time)}</span>
+    </div>${a}
+    <button class="cta" id="confirmBook">✨ Book with AI</button>
+    <button class="cta ghost" id="closeBtn">Cancel</button>`);
   $("#closeSheet").addEventListener("click", closeSheet);
   $("#closeBtn").addEventListener("click", closeSheet);
+  const known = state.venues.find((v) => it.venue && v.name.toLowerCase().includes(it.venue.toLowerCase()));
   $("#confirmBook").addEventListener("click", () => bookNow({
-    venue: intent.venue || "the venue", party_size: intent.party_size, time: intent.time, date: intent.date,
-    notes: intent.notes || `Party of ${intent.party_size}`, start_url: "", source_prompt: intent.source_prompt || text,
-  }, intent.venue || "your table", to12(intent.time)));
+    venue: it.venue || "the venue", party_size: it.party_size, time: it.time, date: it.date,
+    notes: it.notes || `Party of ${it.party_size}`, start_url: "", source_prompt: it.source_prompt || text,
+  }, it.venue || "your table", (known && known.photo) || "slate", to12(it.time)));
 }
-function fieldChip(label, k, val) { return `<span class="chip"><b style="color:var(--muted);font-weight:600">${label}:</b> ${val}</span>`; }
 
 /* ---------- voice ---------- */
 let recog = null, listening = false;
@@ -167,101 +220,212 @@ function toggleVoice() {
 }
 function stopVoice() { listening = false; $("#mic").classList.remove("listening"); $("#askHint").textContent = "Say it or type it — the agent books it for you."; }
 
-/* ---------- booking (live agent) ---------- */
-function openSheetShell(title, inner) { $("#sheetCard").innerHTML = `<div class="sheet-body" style="padding-top:22px">${inner}</div>`; $("#sheet").hidden = false; }
+/* ---------- animated booking ---------- */
+function openSheetBody(inner) { $("#sheetCard").innerHTML = `<div class="sheet-body" style="padding-top:22px">${inner}</div>`; $("#sheet").hidden = false; }
 
-async function bookNow(payload, venueName, whenLabel) {
-  openSheetShell("Booking", `
-    <div class="book-head"><h3>Booking ${venueName}</h3></div>
-    <div class="banner" id="bk-banner" hidden></div>
-    <ol class="timeline" id="bk-log"></ol>
-    <button class="cta ghost" id="bk-done" hidden>View reservation</button>`);
-  addEvent("⚙️", "Session", whenLabel ? `Requested ${whenLabel}` : "");
+async function bookNow(payload, venueName, photo, whenLabel) {
+  openSheetBody(`
+    <div class="book-anim" id="bkAnim">
+      <div class="ring-wrap">
+        <svg width="132" height="132" viewBox="0 0 132 132">
+          <defs><linearGradient id="bookgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fcabb"/><stop offset="1" stop-color="#6c5ce7"/></linearGradient></defs>
+          <circle class="ring-bg" cx="66" cy="66" r="58"/><circle class="ring-fg" id="ringFg" cx="66" cy="66" r="58"/>
+        </svg>
+        <div class="ring-emoji" id="ringEmoji">🧭</div>
+        <div class="ring-check"><svg width="72" height="72" viewBox="0 0 72 72"><path d="M21 38 l10 10 l20 -24"/></svg></div>
+        <div class="confetti" id="confetti"></div>
+      </div>
+      <div class="phase" id="phase">Reaching ${venueName}…</div>
+      <div class="phase-sub" id="phaseSub">Connecting to the reservation system</div>
+      <div class="book-summary" id="bkSummary"></div>
+      <button class="details-toggle" id="detailsToggle">View agent details</button>
+      <div class="details-log" id="detailsLog" hidden><ol class="timeline" id="bk-log"></ol></div>
+    </div>
+    <button class="cta ghost" id="bk-done" hidden>View in calendar</button>`);
+  $("#detailsToggle").addEventListener("click", () => {
+    const d = $("#detailsLog"); d.hidden = !d.hidden; $("#detailsToggle").textContent = d.hidden ? "View agent details" : "Hide agent details";
+  });
+  setProgress(0.08);
+
   let res, run;
   try { res = await api("api/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
-  catch (_) { toast("Couldn't start booking."); return; }
+  catch (_) { setPhaseFail("Couldn't start the booking."); return; }
   try { run = await api(`api/reservations/${res.id}/book`, { method: "POST" }); }
-  catch (_) { toast("Couldn't reach the agent."); return; }
-  $("#bk-done").addEventListener("click", () => { closeSheet(); switchView("reservations"); });
-  streamRun(run.run_id, () => { $("#bk-done").hidden = false; loadReservations(); });
+  catch (_) { setPhaseFail("Couldn't reach the agent."); return; }
+
+  $("#bk-done").addEventListener("click", () => { closeSheet(); switchView("calendar"); });
+  const summary = { venue: venueName, party: payload.party_size, when: whenLabel, date: payload.date };
+  streamRun(run.run_id, summary);
 }
 
-function streamRun(runId, onDone) {
+const RING_C = 364;
+function setProgress(f) { const r = $("#ringFg"); if (r) r.style.strokeDashoffset = String(RING_C * (1 - Math.min(f, 1))); }
+function setPhase(emoji, title, sub) {
+  const e = $("#ringEmoji"), p = $("#phase"), s = $("#phaseSub");
+  if (e) e.textContent = emoji; if (p) p.textContent = title; if (s) s.textContent = sub || "";
+}
+function setPhaseFail(msg) { setPhase("⚠️", "Couldn’t complete", msg); const b = $("#bk-done"); if (b) { b.hidden = false; b.textContent = "Close"; b.onclick = closeSheet; } }
+let _seenRead = 0, _phaseIdx = 0;
+function advancePhase(ev, venueName, whenLabel) {
+  // Map raw agent events to a few friendly phases with a filling ring.
+  if (ev.type === "action" && ev.tool === "navigate") { _phaseIdx = 1; setPhase("🧭", `Reaching ${venueName}`, "Opening the reservation page"); setProgress(0.2); }
+  else if (ev.type === "action" && ev.tool === "read_page") { _seenRead++;
+    if (_seenRead >= 2 && _phaseIdx < 3) { _phaseIdx = 3; setPhase("📅", "Checking availability", "Finding open tables near your time"); setProgress(0.62); } }
+  else if (ev.type === "action" && (ev.tool === "select_option" || ev.tool === "fill")) {
+    if (_phaseIdx < 2) { _phaseIdx = 2; setPhase("⌨️", `Requesting your table`, whenLabel ? `Party of 2 · ${whenLabel}` : "Filling in the details"); setProgress(0.42); } }
+  else if (ev.type === "action" && ev.tool === "click" && /confirm|reserve|book/i.test(ev.result || "")) {
+    _phaseIdx = 4; setPhase("🔒", "Locking it in", "Confirming your reservation"); setProgress(0.88); }
+}
+function streamRun(runId, summary) {
+  _seenRead = 0; _phaseIdx = 0;
   const src = new EventSource(urlOf(`api/runs/${runId}/stream`));
   src.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (!$("#bk-log")) { src.close(); return; }
-    if (ev.type === "status") addEvent("⚙️", "Session", ev.message);
-    else if (ev.type === "assistant") addEvent("💭", "Agent", ev.text, "assistant");
-    else if (ev.type === "action") {
-      const inp = ev.input && Object.keys(ev.input).length ? JSON.stringify(ev.input) : "";
-      addEvent(TOOL_ICON[ev.tool] || "🔧", `${ev.tool} · step ${ev.step}`, [inp, ev.result].filter(Boolean).join("\n"));
-    } else if (ev.type === "result") showBanner(ev);
-    else if (ev.type === "error") { addEvent("⛔", "Error", ev.message); showBanner({ outcome: "failed", note: ev.message }); }
-    else if (ev.type === "end") { src.close(); onDone && onDone(); }
+    if (ev.type === "action" || ev.type === "assistant" || ev.type === "status") rawLog(ev);
+    advancePhase(ev, summary.venue, summary.when);
+    if (ev.type === "result") finishBooking(ev, summary);
+    else if (ev.type === "error") { rawLog(ev); setPhaseFail(ev.message || "The agent hit a problem."); }
+    else if (ev.type === "end") { src.close(); loadReservations(); }
   };
-  src.onerror = () => { src.close(); onDone && onDone(); };
+  src.onerror = () => { src.close(); };
 }
-function addEvent(ic, tl, dt, cls) {
-  const log = $("#bk-log"); if (!log || (!dt && tl === "Session")) return;
-  const li = el("li", "event" + (cls ? " " + cls : ""));
-  li.appendChild(el("div", "ic", ic));
-  const b = el("div"); b.appendChild(el("div", "tl", tl));
-  if (dt) { const d = el("div", "dt"); d.textContent = dt; b.appendChild(d); }
+function rawLog(ev) {
+  const log = $("#bk-log"); if (!log) return;
+  const map = { navigate: "🧭", read_page: "👀", click: "👆", fill: "⌨️", select_option: "⌨️", screenshot: "📸", submit_payment: "💳" };
+  const ic = ev.type === "assistant" ? "💭" : ev.type === "status" ? "⚙️" : (map[ev.tool] || "🔧");
+  const tl = ev.type === "assistant" ? "Agent" : ev.type === "status" ? "Session" : `${ev.tool} · step ${ev.step}`;
+  const dt = ev.text || ev.message || [ev.input && Object.keys(ev.input).length ? JSON.stringify(ev.input) : "", ev.result].filter(Boolean).join("\n");
+  const li = el("li", "event" + (ev.type === "assistant" ? " assistant" : "")); li.appendChild(el("div", "ic", ic));
+  const b = el("div"); b.appendChild(el("div", "tl", tl)); if (dt) { const d = el("div", "dt"); d.textContent = dt; b.appendChild(d); }
   li.appendChild(b); log.appendChild(li);
-  li.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
-function showBanner(ev) {
-  const b = $("#bk-banner"); if (!b) return;
+function finishBooking(ev, summary) {
   const ok = ev.outcome === "success" || ev.outcome === "confirmed";
-  b.className = "banner " + (ok ? "ok" : "");
-  b.innerHTML = (ok ? "✅ Table booked" : ev.outcome === "needs_human" ? "🙋 Needs you" : "❌ Couldn’t complete")
-    + (ev.note ? `<small>${ev.note}</small>` : "");
-  b.hidden = false;
-  if (ok) toast("Added to your reservations ✨");
+  if (!ok) { setPhaseFail(ev.note || "The table wasn’t available."); loadReservations(); return; }
+  setProgress(1);
+  const anim = $("#bkAnim"); if (anim) anim.classList.add("done");
+  setPhase("✅", "Table booked", "");
+  $("#phase").textContent = "You’re booked!";
+  $("#phaseSub").textContent = ev.note || "";
+  const sum = $("#bkSummary");
+  if (sum) sum.innerHTML = `<div class="bs-name">${summary.venue}</div><div class="bs-meta">Party of ${summary.party} · ${summary.when || ""} · ${dateLabel(summary.date)}</div>`;
+  const done = $("#bk-done"); if (done) done.hidden = false;
+  confetti();
+  toast("Added to your calendar ✨");
+  loadReservations();
+}
+function confetti() {
+  const box = $("#confetti"); if (!box || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const colors = ["#3fcabb", "#ff7a66", "#6c5ce7", "#f6b73c"];
+  for (let i = 0; i < 28; i++) {
+    const bit = el("i"); bit.style.left = Math.random() * 100 + "%";
+    bit.style.background = colors[i % colors.length];
+    box.appendChild(bit);
+    bit.animate([{ transform: `translateY(-10px) rotate(0deg)`, opacity: 1 },
+      { transform: `translateY(160px) rotate(${(Math.random() * 720 - 360) | 0}deg)`, opacity: 0 }],
+      { duration: 900 + Math.random() * 700, delay: Math.random() * 250, easing: "cubic-bezier(.2,.6,.3,1)" })
+      .onfinish = () => bit.remove();
+  }
 }
 
-/* ---------- reservations ---------- */
+/* ---------- reservations + apple calendar ---------- */
 async function loadReservations() {
   try { state.reservations = await api("api/reservations"); } catch (_) { state.reservations = []; }
-  const wrap = $("#reservations"); wrap.innerHTML = "";
-  const active = state.reservations.filter((r) => r.status !== "cancelled").reverse();
-  if (!active.length) { wrap.appendChild(el("div", "empty", "No tables yet — ask the concierge or tap a place.")); paintProfile(); return; }
-  active.forEach((r) => {
-    const v = state.venues.find((x) => x.name === r.venue);
-    const photo = PHOTO[(v && v.photo)] || PHOTO.slate;
-    const label = { confirmed: "Confirmed", pending: "Booking…", needs_human: "Needs you", failed: "Failed" }[r.status] || r.status;
-    const cls = r.status === "confirmed" ? "confirmed" : r.status === "pending" ? "pending" : "cancelled";
-    const t = el("div", "trip");
-    t.innerHTML = `<div class="thumb" style="background-image:${photo}"></div>
-      <div><div class="t-name">${r.venue}</div><div class="t-meta">${prettyWhen(r)}</div></div>
-      <div class="status ${cls}">${label}</div>`;
-    wrap.appendChild(t);
-  });
+  if (!$("#view-calendar").hidden) renderCalendar();
   paintProfile();
 }
-function prettyWhen(r) {
-  const parts = [];
-  if (r.party_size) parts.push(`Party of ${r.party_size}`);
-  if (r.time) parts.push(to12(r.time));
-  if (r.date) parts.push(dateLabel(r.date));
-  return parts.join(" · ") || (r.notes || "");
+function moveMonth(d) { const m = new Date(state.calMonth); m.setMonth(m.getMonth() + d); state.calMonth = m; renderCalendar(); }
+function renderCalendar() {
+  const base = state.calMonth, y = base.getFullYear(), mo = base.getMonth();
+  $("#calMonth").innerHTML = `${base.toLocaleDateString(undefined, { month: "long" })} <span>${y}</span>`;
+  const first = new Date(y, mo, 1); const start = new Date(first); start.setDate(1 - first.getDay());
+  const byDay = {}; state.reservations.filter((r) => r.status !== "cancelled").forEach((r) => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+  const days = $("#calDays"); days.innerHTML = "";
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i); const key = ymd(d);
+    const cell = el("div", "cal-cell" + (d.getMonth() !== mo ? " out" : "") + (key === ymd(new Date()) ? " today" : "") + (key === state.calSel ? " sel" : ""));
+    const evs = byDay[key] || [];
+    const dots = evs.slice(0, 3).map((_, j) => `<i class="${EVT_COLORS[j] ? "c" + (j + 1) : ""}"></i>`).join("");
+    cell.innerHTML = `<div class="n">${d.getDate()}</div><div class="cal-dots">${dots}</div>`;
+    cell.addEventListener("click", () => { state.calSel = key; renderCalendar(); });
+    days.appendChild(cell);
+  }
+  renderAgenda(byDay[state.calSel] || []);
+}
+function renderAgenda(list) {
+  const selDate = new Date(state.calSel + "T00:00:00");
+  $("#agendaTitle").textContent = sameDay(selDate, new Date()) ? "Today" : selDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const wrap = $("#agenda"); wrap.innerHTML = "";
+  if (!list.length) { wrap.appendChild(el("div", "empty", "No reservations this day.")); return; }
+  list.sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach((r, i) => {
+    const evt = el("div", "evt" + (EVT_COLORS[i % 3] ? " " + EVT_COLORS[i % 3] : ""));
+    const status = { confirmed: "Confirmed", pending: "Booking…", needs_human: "Needs you", failed: "Failed" }[r.status] || r.status;
+    evt.innerHTML = `<div class="bar"></div>
+      <div class="et">${to12(r.time).replace(" ", "")}<small>${r.party_size} ppl</small></div>
+      <div><div class="en">${r.venue}</div><div class="em">${status}${r.notes ? " · " + r.notes : ""}</div></div>`;
+    wrap.appendChild(evt);
+  });
 }
 
+/* ---------- community ---------- */
+async function loadCommunity() {
+  let recs = [];
+  try { recs = await api("api/community"); } catch (_) {}
+  const wrap = $("#community"); wrap.innerHTML = "";
+  if (!recs.length) { wrap.appendChild(el("div", "empty", "No recommendations yet.")); return; }
+  recs.forEach((r) => wrap.appendChild(recCard(r, true)));
+}
+function recCard(r, showWhere) {
+  const card = el("div", "rec");
+  const color = AV_COLORS[hash(r.author) % AV_COLORS.length];
+  const where = showWhere ? `${r.venue}${r.cuisine ? " · " + r.cuisine : ""}` : "";
+  card.innerHTML = `
+    <div class="rec-top">
+      <div class="rec-av" style="background:${color}">${(r.author || "?")[0].toUpperCase()}</div>
+      <div><div class="rec-who">${r.author}</div>${where ? `<div class="rec-where">${where}</div>` : ""}</div>
+      <div class="rec-stars">${"★".repeat(r.rating || 5)}</div>
+    </div>
+    <div class="rec-text">${escapeHtml(r.text)}</div>
+    <div class="rec-actions">
+      <button class="rec-btn like"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg><span>${r.likes || 0}</span></button>
+      <button class="rec-btn share"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13"/></svg>Share</button>
+    </div>`;
+  card.querySelector(".like").addEventListener("click", async (e) => {
+    const btn = e.currentTarget; btn.classList.add("liked", "pop");
+    const span = btn.querySelector("span"); span.textContent = (parseInt(span.textContent) || 0) + 1;
+    try { await api(`api/recommendations/${r.id}/like`, { method: "POST" }); } catch (_) {}
+    setTimeout(() => btn.classList.remove("pop"), 320);
+  });
+  card.querySelector(".share").addEventListener("click", () => {
+    const txt = `${r.author} recommends ${r.venue || "this spot"}: “${r.text}”`;
+    if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else { navigator.clipboard && navigator.clipboard.writeText(txt); toast("Copied to share ✨"); }
+  });
+  return card;
+}
+
+/* ---------- profile ---------- */
 function paintProfile() {
-  $("#pemail").textContent = "guest@concierge.app";
+  const u = state.user || {};
+  $("#pavatar").textContent = (u.name || "G")[0].toUpperCase();
+  $("#pname").textContent = u.name || "Guest";
+  $("#pemail").textContent = u.email || "—";
   $("#pmode").textContent = state.mode || "—";
   $("#ptrips").textContent = String(state.reservations.filter((r) => r.status === "confirmed").length);
 }
 
-/* ---------- time/date helpers ---------- */
+/* ---------- helpers ---------- */
 function to24(s) { const m = (s || "").match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i); if (!m) return "19:00";
   let h = +m[1] % 12; if (/pm/i.test(m[3])) h += 12; return `${String(h).padStart(2, "0")}:${m[2]}`; }
 function to12(t) { if (!t) return "7:00 PM"; const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ap}`; }
-function todayISO() { return new Date().toISOString().slice(0, 10); }
-function dateLabel(d) { const t = new Date(); t.setHours(0, 0, 0, 0); const dt = new Date(d + "T00:00:00");
-  const diff = Math.round((dt - t) / 864e5); if (diff === 0) return "Today"; if (diff === 1) return "Tomorrow";
+function todayISO() { return ymd(new Date()); }
+function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function sameDay(a, b) { return ymd(a) === ymd(b); }
+function dateLabel(d) { if (!d) return "Today"; const t = new Date(); t.setHours(0, 0, 0, 0); const dt = new Date(d + "T00:00:00");
+  const diff = Math.round((dt - t) / 864e5); if (diff === 0) return "Today"; if (diff === 1) return "Tomorrow"; if (diff === -1) return "Yesterday";
   return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+function hash(s) { let h = 0; for (let i = 0; i < (s || "").length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+function escapeHtml(s) { return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 let toastT;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3000); }

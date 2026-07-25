@@ -31,6 +31,7 @@ def _conn() -> sqlite3.Connection:
         _CONN.execute("""
             CREATE TABLE IF NOT EXISTS reservations (
                 id           TEXT PRIMARY KEY,
+                user_id      TEXT,
                 created      REAL,
                 venue        TEXT,
                 start_url    TEXT,
@@ -46,8 +47,98 @@ def _conn() -> sqlite3.Connection:
                 run_id       TEXT
             )
         """)
+        _CONN.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id            TEXT PRIMARY KEY,
+                email         TEXT UNIQUE,
+                name          TEXT,
+                password_hash TEXT,
+                created       REAL
+            )
+        """)
+        _CONN.execute("""
+            CREATE TABLE IF NOT EXISTS recommendations (
+                id        TEXT PRIMARY KEY,
+                venue_id  TEXT,
+                venue     TEXT,
+                user_id   TEXT,
+                author    TEXT,
+                rating    INTEGER,
+                text      TEXT,
+                likes     INTEGER,
+                created   REAL
+            )
+        """)
         _CONN.commit()
     return _CONN
+
+
+# ---- users ----
+
+def create_user(email: str, name: str, password_hash: str) -> dict:
+    uid = uuid.uuid4().hex[:12]
+    with _LOCK:
+        _conn().execute(
+            "INSERT INTO users (id, email, name, password_hash, created) VALUES (?,?,?,?,?)",
+            (uid, email.lower().strip(), name.strip(), password_hash, time.time()),
+        )
+        _conn().commit()
+    return {"id": uid, "email": email.lower().strip(), "name": name.strip()}
+
+
+def get_user_by_email(email: str) -> dict | None:
+    with _LOCK:
+        r = _conn().execute("SELECT * FROM users WHERE email=?", (email.lower().strip(),)).fetchone()
+    return dict(r) if r else None
+
+
+def get_user(uid: str) -> dict | None:
+    with _LOCK:
+        r = _conn().execute("SELECT id, email, name, created FROM users WHERE id=?", (uid,)).fetchone()
+    return dict(r) if r else None
+
+
+# ---- recommendations ----
+
+def add_recommendation(data: dict) -> dict:
+    rid = uuid.uuid4().hex[:12]
+    row = {
+        "id": rid, "venue_id": data.get("venue_id", ""), "venue": data.get("venue", ""),
+        "user_id": data.get("user_id", ""), "author": data.get("author", "Guest"),
+        "rating": int(data.get("rating") or 5), "text": data.get("text", ""),
+        "likes": int(data.get("likes") or 0), "created": time.time(),
+    }
+    with _LOCK:
+        _conn().execute(
+            """INSERT INTO recommendations (id,venue_id,venue,user_id,author,rating,text,likes,created)
+               VALUES (:id,:venue_id,:venue,:user_id,:author,:rating,:text,:likes,:created)""", row)
+        _conn().commit()
+    return row
+
+
+def list_recommendations(venue_id: str | None = None, limit: int = 50) -> list[dict]:
+    with _LOCK:
+        if venue_id:
+            rows = _conn().execute(
+                "SELECT * FROM recommendations WHERE venue_id=? ORDER BY created DESC LIMIT ?",
+                (venue_id, limit)).fetchall()
+        else:
+            rows = _conn().execute(
+                "SELECT * FROM recommendations ORDER BY created DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def like_recommendation(rid: str) -> dict | None:
+    with _LOCK:
+        _conn().execute("UPDATE recommendations SET likes = likes + 1 WHERE id=?", (rid,))
+        _conn().commit()
+        r = _conn().execute("SELECT * FROM recommendations WHERE id=?", (rid,)).fetchone()
+    return dict(r) if r else None
+
+
+def recommendations_count() -> int:
+    with _LOCK:
+        return _conn().execute("SELECT COUNT(*) FROM recommendations").fetchone()[0]
 
 
 def _row_to_dict(r: sqlite3.Row) -> dict:
@@ -64,6 +155,7 @@ def create_reservation(data: dict) -> dict:
     rid = uuid.uuid4().hex[:12]
     row = {
         "id": rid,
+        "user_id": data.get("user_id") or "",
         "created": time.time(),
         "venue": data.get("venue") or "Untitled venue",
         "start_url": data.get("start_url") or "",
@@ -81,9 +173,9 @@ def create_reservation(data: dict) -> dict:
     with _LOCK:
         _conn().execute(
             """INSERT INTO reservations
-               (id, created, venue, start_url, party_size, date, time, name, phone,
+               (id, user_id, created, venue, start_url, party_size, date, time, name, phone,
                 notes, status, method, source_prompt, run_id)
-               VALUES (:id,:created,:venue,:start_url,:party_size,:date,:time,:name,
+               VALUES (:id,:user_id,:created,:venue,:start_url,:party_size,:date,:time,:name,
                        :phone,:notes,:status,:method,:source_prompt,:run_id)""",
             row,
         )
@@ -102,11 +194,15 @@ def get_reservation(rid: str) -> dict | None:
     return _row_to_dict(r) if r else None
 
 
-def list_reservations() -> list[dict]:
+def list_reservations(user_id: str | None = None) -> list[dict]:
     with _LOCK:
-        rows = _conn().execute(
-            "SELECT * FROM reservations ORDER BY date, time, created"
-        ).fetchall()
+        if user_id:
+            rows = _conn().execute(
+                "SELECT * FROM reservations WHERE user_id=? ORDER BY date, time, created",
+                (user_id,)).fetchall()
+        else:
+            rows = _conn().execute(
+                "SELECT * FROM reservations ORDER BY date, time, created").fetchall()
     return [_row_to_dict(r) for r in rows]
 
 

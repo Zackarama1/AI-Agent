@@ -31,12 +31,13 @@ import os
 from pathlib import Path
 
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import auth
 import store
 from adapters import adapter_for
 from agent_service import run_task_events
@@ -72,6 +73,22 @@ class RunRequest(BaseModel):
 
 class ParseRequest(BaseModel):
     prompt: str
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class RecRequest(BaseModel):
+    text: str
+    rating: int = 5
 
 
 class Intent(BaseModel):
@@ -174,6 +191,52 @@ def health():
     }
 
 
+# ---------- auth ----------
+
+def current_user(authorization: str | None = Header(None)) -> dict | None:
+    """Resolve the logged-in user from a `Bearer <token>` header, or None."""
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    uid = auth.user_id_for_token(token)
+    return store.get_user(uid) if uid else None
+
+
+def require_user(authorization: str | None = Header(None)) -> dict:
+    user = current_user(authorization)
+    if not user:
+        raise HTTPException(401, "Please sign in.")
+    return user
+
+
+@app.post("/api/auth/signup")
+def signup(req: SignupRequest):
+    email = req.email.lower().strip()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400, "Enter a valid email address.")
+    if len(req.password) < 8:
+        raise HTTPException(400, "Use a password of at least 8 characters.")
+    if store.get_user_by_email(email):
+        raise HTTPException(409, "That email is already registered — try signing in.")
+    name = req.name.strip() or email.split("@")[0].title()
+    user = store.create_user(email, name, auth.hash_password(req.password))
+    return {"token": auth.create_token(user["id"]), "user": user}
+
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    row = store.get_user_by_email(req.email)
+    if not row or not auth.verify_password(req.password, row["password_hash"]):
+        raise HTTPException(401, "Email or password is incorrect.")
+    user = {"id": row["id"], "email": row["email"], "name": row["name"]}
+    return {"token": auth.create_token(user["id"]), "user": user}
+
+
+@app.get("/api/auth/me")
+def me(user: dict = Depends(require_user)):
+    return user
+
+
 VENUES = [
     {"id": "tasting-room", "name": "The Tasting Room", "cuisine": "New American",
      "neighborhood": "Hayes Valley", "distance": "1 km", "rating": 4, "reviews": 128,
@@ -214,6 +277,10 @@ VENUES = [
 ]
 
 
+VENUE_BY_ID = {v["id"]: v for v in VENUES}
+VENUE_BY_NAME = {v["name"]: v for v in VENUES}
+
+
 @app.get("/api/venues")
 def list_venues(q: str = ""):
     q = q.strip().lower()
@@ -222,6 +289,66 @@ def list_venues(q: str = ""):
               or q in v["neighborhood"].lower()]
     # start_url is blank -> the booking adapter routes to the demo reservation flow.
     return [{**v, "booking_url": ""} for v in venues]
+
+
+# ---------- recommendations / community ----------
+
+_SEED_RECS = [
+    ("nopa", "Ava R.", 5, "The wood-fired lamb is unreal, and they actually held our 9:30 table. Go late."),
+    ("tasting-room", "Marcus L.", 5, "Booked the chef's counter for our anniversary — best meal of the year."),
+    ("zuni", "Priya S.", 4, "Come for the roast chicken (order it the second you sit down) and the oysters."),
+    ("state-bird", "Dan K.", 5, "Impossible to get in — the agent grabbed a 7:30 cancellation for us. Worth it."),
+    ("kokkari", "Sofia M.", 5, "That fireplace room in winter is magic. The meze spread is huge, bring friends."),
+    ("rich-table", "Leo T.", 4, "Porcini doughnuts, sardine chips, done. Sit at the bar if you're a two-top."),
+]
+
+
+def _seed_recs_once():
+    if store.recommendations_count() == 0:
+        for vid, author, rating, text in _SEED_RECS:
+            v = VENUE_BY_ID.get(vid, {})
+            store.add_recommendation({"venue_id": vid, "venue": v.get("name", ""),
+                                      "author": author, "rating": rating, "text": text,
+                                      "likes": 3 + (rating * 2)})
+
+
+@app.get("/api/venues/{venue_id}/recommendations")
+def venue_recs(venue_id: str):
+    return store.list_recommendations(venue_id)
+
+
+@app.post("/api/venues/{venue_id}/recommendations")
+def add_venue_rec(venue_id: str, req: RecRequest, user: dict = Depends(require_user)):
+    v = VENUE_BY_ID.get(venue_id, {})
+    return store.add_recommendation({
+        "venue_id": venue_id, "venue": v.get("name", ""), "user_id": user["id"],
+        "author": user["name"], "rating": max(1, min(req.rating, 5)), "text": req.text.strip(),
+    })
+
+
+@app.on_event("startup")
+def _startup():
+    _seed_recs_once()
+
+
+@app.get("/api/community")
+def community():
+    """Feed of recommendations, newest first, joined with venue metadata."""
+    recs = store.list_recommendations(None, limit=50)
+    for r in recs:
+        v = VENUE_BY_ID.get(r["venue_id"], {})
+        r["cuisine"] = v.get("cuisine", "")
+        r["neighborhood"] = v.get("neighborhood", "")
+        r["photo"] = v.get("photo", "slate")
+    return recs
+
+
+@app.post("/api/recommendations/{rec_id}/like")
+def like_rec(rec_id: str):
+    rec = store.like_recommendation(rec_id)
+    if not rec:
+        raise HTTPException(404, "No such recommendation.")
+    return rec
 
 
 @app.get("/api/tasks")
@@ -261,40 +388,45 @@ def parse(req: ParseRequest):
 # ---------- reservations / calendar ----------
 
 @app.get("/api/reservations")
-def reservations():
-    return store.list_reservations()
+def reservations(user: dict = Depends(require_user)):
+    return store.list_reservations(user_id=user["id"])
 
 
 @app.post("/api/reservations")
-def create_reservation(intent: Intent):
-    res = store.create_reservation(intent.model_dump())
+def create_reservation(intent: Intent, user: dict = Depends(require_user)):
+    data = intent.model_dump()
+    data["user_id"] = user["id"]
+    if not data.get("name"):
+        data["name"] = user["name"]
+    return store.create_reservation(data)
+
+
+def _owned(rid: str, user: dict) -> dict:
+    res = store.get_reservation(rid)
+    if not res:
+        raise HTTPException(404, "no such reservation")
+    if res.get("user_id") and res["user_id"] != user["id"]:
+        raise HTTPException(403, "not your reservation")
     return res
 
 
 @app.get("/api/reservations/{rid}")
-def one_reservation(rid: str):
-    res = store.get_reservation(rid)
-    if not res:
-        raise HTTPException(404, "no such reservation")
-    return res
+def one_reservation(rid: str, user: dict = Depends(require_user)):
+    return _owned(rid, user)
 
 
 @app.post("/api/reservations/{rid}/book")
-async def book_reservation(rid: str, mode: str = "auto"):
-    res = store.get_reservation(rid)
-    if not res:
-        raise HTTPException(404, "no such reservation")
+async def book_reservation(rid: str, mode: str = "auto", user: dict = Depends(require_user)):
+    res = _owned(rid, user)
     m = _mode_from(mode)
     job = _start_agent(_booking_task(res), m, reservation_id=rid)
     return {"reservation_id": rid, "run_id": job.id, "mode": m}
 
 
 @app.post("/api/reservations/{rid}/cancel")
-def cancel_reservation(rid: str):
-    res = store.update_reservation(rid, status="cancelled")
-    if not res:
-        raise HTTPException(404, "no such reservation")
-    return res
+def cancel_reservation(rid: str, user: dict = Depends(require_user)):
+    _owned(rid, user)
+    return store.update_reservation(rid, status="cancelled")
 
 
 @app.post("/api/reservations/{rid}/call")
