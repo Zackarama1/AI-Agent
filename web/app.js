@@ -25,7 +25,7 @@ const state = { token: localStorage.getItem("token") || "", user: null, venues: 
   saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
   calMonth: firstOfMonth(new Date()), calSel: ymd(new Date()),
   book: { date: ymd(new Date()), party: 2 },
-  filters: { cuisines: new Set(), price: new Set(), minRating: 0, sort: "rating" },
+  filters: { cities: new Set(), cuisines: new Set(), price: new Set(), minRating: 0, sort: "rating" },
   settings: { theme: localStorage.getItem("theme") || "auto", aiMode: localStorage.getItem("aiMode") || "autopilot", loc: null },
   cards: JSON.parse(localStorage.getItem("cards") || "[]"),
   posts: [] };
@@ -130,7 +130,7 @@ function renderControls() {
   $("#dateVal").textContent = dateLabel(state.book.date);
   $("#partyVal").textContent = `${state.book.party} ${state.book.party === 1 ? "guest" : "guests"}`;
   const f = state.filters;
-  const n = f.cuisines.size + f.price.size + (f.minRating ? 1 : 0) + (f.sort !== "rating" ? 1 : 0);
+  const n = f.cities.size + f.cuisines.size + f.price.size + (f.minRating ? 1 : 0) + (f.sort !== "rating" ? 1 : 0);
   const btn = $("#filterBtn");
   btn.innerHTML = `Filters${n ? ` <span class="badge">${n}</span>` : ""}` +
     `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>`;
@@ -138,6 +138,7 @@ function renderControls() {
 function filteredVenues() {
   const f = state.filters;
   let vs = state.venues.filter((v) =>
+    (!f.cities.size || f.cities.has(v.city)) &&
     (!f.cuisines.size || f.cuisines.has(v.cuisine)) &&
     (!f.price.size || f.price.has(v.price_level)) &&
     v.rating >= f.minRating);
@@ -267,11 +268,14 @@ function openPartyPicker() {
 }
 function openFilters() {
   const f = state.filters;
-  const cuisines = [...new Set(state.venues.map((v) => v.cuisine))];
-  const prices = ["$$", "$$$"];
+  const cities = [...new Set(state.venues.map((v) => v.city))];
+  const cuisines = [...new Set(state.venues.map((v) => v.cuisine))].sort();
+  const prices = ["$$", "$$$", "$$$$"];
   const sorts = [["rating", "Top rated"], ["price", "Price"], ["distance", "Distance"]];
   openSheetBody(`
     <div class="picker-title">Filters</div>
+    <div class="pick-label">City</div>
+    <div class="chip-row" id="fCity">${cities.map((c) => `<button class="opt ${f.cities.has(c) ? "on" : ""}" data-city="${c}">${c}</button>`).join("")}</div>
     <div class="pick-label">Cuisine</div>
     <div class="chip-row" id="fCuis">${cuisines.map((c) => `<button class="opt ${f.cuisines.has(c) ? "on" : ""}" data-c="${c}">${c}</button>`).join("")}</div>
     <div class="pick-label">Price</div>
@@ -283,12 +287,13 @@ function openFilters() {
     <button class="apply" id="fApply">Show results</button>
     <button class="apply ghost" id="fClear">Clear all</button>`);
   const toggle = (set, val, e) => { set.has(val) ? set.delete(val) : set.add(val); e.currentTarget.classList.toggle("on"); };
+  $$("#fCity .opt").forEach((o) => o.addEventListener("click", (e) => toggle(f.cities, o.dataset.city, e)));
   $$("#fCuis .opt").forEach((o) => o.addEventListener("click", (e) => toggle(f.cuisines, o.dataset.c, e)));
   $$("#fPrice .opt").forEach((o) => o.addEventListener("click", (e) => toggle(f.price, o.dataset.p, e)));
   $$("#fRating .opt").forEach((o) => o.addEventListener("click", () => { f.minRating = +o.dataset.r; $$("#fRating .opt").forEach((x) => x.classList.toggle("on", x === o)); }));
   $$("#fSort .opt").forEach((o) => o.addEventListener("click", () => { f.sort = o.dataset.s; $$("#fSort .opt").forEach((x) => x.classList.toggle("on", x === o)); }));
   $("#fApply").addEventListener("click", () => { closeSheet(); renderControls(); renderVenues(); });
-  $("#fClear").addEventListener("click", () => { f.cuisines.clear(); f.price.clear(); f.minRating = 0; f.sort = "rating"; closeSheet(); renderControls(); renderVenues(); });
+  $("#fClear").addEventListener("click", () => { f.cities.clear(); f.cuisines.clear(); f.price.clear(); f.minRating = 0; f.sort = "rating"; closeSheet(); renderControls(); renderVenues(); });
 }
 
 /* ---------- AI ask ---------- */
@@ -582,8 +587,8 @@ function paintProfile() {
 }
 function distLabel(v) {
   const d = distanceKm(v);
-  if (d != null) return `${d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1) + " km"} away`;
-  return v.neighborhood;
+  if (d != null) return `${d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1) + " km"} away · ${v.neighborhood}`;
+  return v.city ? `${v.neighborhood}, ${v.city}` : v.neighborhood;
 }
 
 /* ---------- settings: theme + AI mode ---------- */

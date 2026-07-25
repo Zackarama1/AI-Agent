@@ -41,6 +41,7 @@ import auth
 import emailer
 import phone
 import store
+import venues
 from adapters import adapter_for, real_url_for_venue
 from agent_service import run_task_events
 from jobs import JOBS, Job
@@ -252,71 +253,25 @@ def me(user: dict = Depends(require_user)):
     return user
 
 
-VENUES = [
-    {"id": "tasting-room", "name": "The Tasting Room", "cuisine": "New American",
-     "neighborhood": "Hayes Valley", "distance": "1 km", "rating": 4, "reviews": 128,
-     "price_level": "$$$", "photo": "ember", "slots": ["6:30 PM", "7:00 PM", "7:45 PM"],
-     "amenities": ["Tasting menu", "Natural wine", "Bar seats", "Vegetarian"],
-     "description": "A seasonal tasting menu in an intimate room — the chef's counter is "
-                    "the seat to book."},
-    {"id": "nopa", "name": "Nopa", "cuisine": "Californian",
-     "neighborhood": "Alamo Square", "distance": "3 km", "rating": 5, "reviews": 342,
-     "price_level": "$$", "photo": "sage", "slots": ["7:15 PM", "8:00 PM", "9:30 PM"],
-     "amenities": ["Wood-fired", "Late night", "Cocktails", "Groups"],
-     "description": "The neighbourhood classic — wood-fired cooking and a buzzing room that "
-                    "runs late."},
-    {"id": "zuni", "name": "Zuni Café", "cuisine": "Mediterranean",
-     "neighborhood": "Market Street", "distance": "2 km", "rating": 4, "reviews": 210,
-     "price_level": "$$$", "photo": "citrus", "slots": ["6:00 PM", "7:30 PM", "8:15 PM"],
-     "amenities": ["Roast chicken", "Oyster bar", "Patio", "Wine list"],
-     "description": "An institution known for its brick-oven roast chicken for two and a "
-                    "superb oyster bar."},
-    {"id": "state-bird", "name": "State Bird Provisions", "cuisine": "Small plates",
-     "neighborhood": "Fillmore", "distance": "4 km", "rating": 5, "reviews": 512,
-     "price_level": "$$$", "photo": "wine", "slots": ["6:45 PM", "7:30 PM"],
-     "amenities": ["Dim-sum style", "Tasting", "Award-winning", "Bar"],
-     "description": "Inventive dim-sum-style small plates rolled to your table — books out "
-                    "fast, so let the agent watch for openings."},
-    {"id": "kokkari", "name": "Kokkari Estiatorio", "cuisine": "Greek",
-     "neighborhood": "Financial District", "distance": "3 km", "rating": 5, "reviews": 388,
-     "price_level": "$$$", "photo": "slate", "slots": ["6:30 PM", "7:15 PM", "8:45 PM"],
-     "amenities": ["Fireplace", "Meze", "Private room", "Groups"],
-     "description": "Rustic Aegean cooking by a roaring fireplace — the meze and the lamb "
-                    "are the move."},
-    {"id": "rich-table", "name": "Rich Table", "cuisine": "New American",
-     "neighborhood": "Hayes Valley", "distance": "1 km", "rating": 4, "reviews": 176,
-     "price_level": "$$$", "photo": "cream", "slots": ["7:00 PM", "8:30 PM"],
-     "amenities": ["Pasta", "Sardine chips", "Bar seats", "Vegetarian"],
-     "description": "Playful, ingredient-driven plates in a warm room — the porcini "
-                    "doughnuts are non-negotiable."},
-]
-
-
+VENUES = venues.VENUES
 VENUE_BY_ID = {v["id"]: v for v in VENUES}
 VENUE_BY_NAME = {v["name"]: v for v in VENUES}
 
-# Approx coordinates (San Francisco) so the app can show real distance from the
-# user's location. When you wire a live venue-data provider (Yelp/Google Places),
-# these come from the API instead.
-VENUE_COORDS = {
-    "tasting-room": (37.7765, -122.4241), "nopa": (37.7748, -122.4376),
-    "zuni": (37.7727, -122.4229), "state-bird": (37.7840, -122.4324),
-    "kokkari": (37.7969, -122.3999), "rich-table": (37.7743, -122.4227),
-}
-
 
 @app.get("/api/venues")
-def list_venues(q: str = ""):
-    q = q.strip().lower()
-    venues = [v for v in VENUES
-              if not q or q in v["name"].lower() or q in v["cuisine"].lower()
-              or q in v["neighborhood"].lower()]
-    # start_url is blank -> the booking adapter routes to the demo reservation flow.
-    out = []
-    for v in venues:
-        lat, lng = VENUE_COORDS.get(v["id"], (None, None))
-        out.append({**v, "booking_url": "", "lat": lat, "lng": lng})
-    return out
+def list_venues(q: str = "", location: str = ""):
+    """Curated multi-city catalog by default; a live provider (Yelp/Google
+    Places) when VENUE_PROVIDER + a key are configured (see venues.py)."""
+    return venues.list_venues(q, location)
+
+
+@app.get("/api/cities")
+def list_cities():
+    seen = []
+    for v in VENUES:
+        if v["city"] not in seen:
+            seen.append(v["city"])
+    return seen
 
 
 # ---------- recommendations / community ----------
