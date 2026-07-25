@@ -38,7 +38,24 @@ const state = { token: localStorage.getItem("token") || "", user: null, venues: 
   cards: JSON.parse(localStorage.getItem("cards") || "[]"),
   posts: [] };
 
-function haptic(ms = 8) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+// Native-feeling haptic vocabulary. Accepts a named pattern or a raw ms value.
+const HAPTICS = { tap: 5, light: 8, medium: 12, heavy: 18, select: 4,
+  success: [12, 28, 22], warn: [22, 38, 22], error: [34, 50, 34] };
+function haptic(kind = "light") {
+  try {
+    if (!navigator.vibrate) return;
+    navigator.vibrate(typeof kind === "number" ? kind : (HAPTICS[kind] || HAPTICS.light));
+  } catch (_) {}
+}
+// Every tap on an interactive control gives an immediate, subtle tick on touch-down.
+const _HAPTIC_SEL = "button, .tab, .chip, .slot-chip, .ctl, .fav, .hotel, .cal-day," +
+  " .icon-btn, .cta, .ghost-btn, .filters, .mic, .ask-go, [role='button'], label.chip";
+function wireGlobalHaptics() {
+  document.addEventListener("pointerdown", (e) => {
+    const t = e.target.closest(_HAPTIC_SEL);
+    if (t && !t.disabled) haptic("select");
+  }, { passive: true });
+}
 function applyTheme() {
   const t = state.settings.theme, r = document.documentElement;
   if (t === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", t);
@@ -51,6 +68,7 @@ function showAuth() { $("#auth").hidden = false; $("#app").hidden = true; }
 function showApp() { $("#auth").hidden = true; $("#app").hidden = false; }
 
 async function boot() {
+  wireGlobalHaptics();
   wireAuth();
   if (state.token) {
     try { state.user = await api("api/auth/me"); startApp(); return; }
@@ -447,7 +465,8 @@ function rawLog(ev) {
 }
 function finishBooking(ev, summary) {
   const ok = ev.outcome === "success" || ev.outcome === "confirmed";
-  if (!ok) { setPhaseFail(ev.note || "The table wasn’t available."); loadReservations(); return; }
+  if (!ok) { haptic("warn"); setPhaseFail(ev.note || "The table wasn’t available."); loadReservations(); return; }
+  haptic("success");
   setProgress(1);
   const anim = $("#bkAnim"); if (anim) anim.classList.add("done");
   setPhase("✅", "Table booked", "");

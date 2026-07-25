@@ -22,8 +22,9 @@
   --grad-warm: linear-gradient(135deg, #ff9a76, #ff7a66 55%, #f2593f);
   --shadow-sm: 0 6px 18px -10px rgba(30, 55, 60, 0.28);
   --shadow: 0 16px 36px -18px rgba(25, 55, 60, 0.32);
-  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
-  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Clean, familiar app type — the native system UI font (SF Pro / Roboto), like Instagram. */
+  --serif: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --tab-h: 74px;
 }
 @media (prefers-color-scheme: dark) {
@@ -424,3 +425,17 @@ body {
 
 /* nicer empty state */
 .empty .em-ic { font-size: 40px; margin-bottom: 8px; opacity: .8; }
+
+/* ---------- clean, familiar app typography ----------
+   Now that the display face is a sans, retune tracking/weight so headings
+   read tight and modern (Instagram/OpenTable) instead of loose serif. */
+body { letter-spacing: -.006em; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+.topbar h1, .ask-title, .auth-hero h1, .section-title, .sheet-body h2, .sheet-body h2 + *,
+.phase, .cal-month, .greeting .hi, .hotel .name, .picker-title, .book-head h3,
+.book-summary .bs-name, .stepper .n, .sheet-price, .hotel .price, .rec-av, .avatar,
+#pname, .p-row b { letter-spacing: -.021em; font-weight: 700; }
+.topbar h1 { font-size: 20px; }
+.auth-hero h1 { font-weight: 800; letter-spacing: -.03em; }
+.hotel .name, .sheet-body h2 { font-weight: 700; }
+.slot-chip, .chip, .ctl, .tab, .filters, .cta, .seg button { letter-spacing: -.01em; }
+.tab { font-weight: 600; }
