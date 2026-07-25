@@ -23,7 +23,9 @@ const EVT_COLORS = ["", "coral", "plum"];
 
 const state = { token: localStorage.getItem("token") || "", user: null, venues: [], reservations: [],
   saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
-  calMonth: firstOfMonth(new Date()), calSel: ymd(new Date()) };
+  calMonth: firstOfMonth(new Date()), calSel: ymd(new Date()),
+  book: { date: ymd(new Date()), party: 2 },
+  filters: { cuisines: new Set(), price: new Set(), minRating: 0, sort: "rating" } };
 
 /* ================= AUTH ================= */
 let authMode = "in";
@@ -78,8 +80,12 @@ async function startApp() {
   $("#askForm").addEventListener("submit", (e) => { e.preventDefault(); askConcierge($("#ask").value); });
   $("#mic").addEventListener("click", toggleVoice);
   $("#logout").addEventListener("click", logout);
+  $("#dateBtn").addEventListener("click", openDatePicker);
+  $("#partyBtn").addEventListener("click", openPartyPicker);
+  $("#filterBtn").addEventListener("click", openFilters);
   $("#calPrev").addEventListener("click", () => moveMonth(-1));
   $("#calNext").addEventListener("click", () => moveMonth(1));
+  renderControls();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   await loadVenues();
   await loadReservations();
@@ -99,10 +105,33 @@ async function loadVenues() {
   try { state.venues = await api("api/venues"); } catch (_) { state.venues = []; }
   renderVenues();
 }
+function renderControls() {
+  $("#dateVal").textContent = dateLabel(state.book.date);
+  $("#partyVal").textContent = `${state.book.party} ${state.book.party === 1 ? "guest" : "guests"}`;
+  const f = state.filters;
+  const n = f.cuisines.size + f.price.size + (f.minRating ? 1 : 0) + (f.sort !== "rating" ? 1 : 0);
+  const btn = $("#filterBtn");
+  btn.innerHTML = `Filters${n ? ` <span class="badge">${n}</span>` : ""}` +
+    `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>`;
+}
+function filteredVenues() {
+  const f = state.filters;
+  let vs = state.venues.filter((v) =>
+    (!f.cuisines.size || f.cuisines.has(v.cuisine)) &&
+    (!f.price.size || f.price.has(v.price_level)) &&
+    v.rating >= f.minRating);
+  const km = (v) => parseFloat(v.distance) || 99;
+  if (f.sort === "rating") vs.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
+  else if (f.sort === "price") vs.sort((a, b) => a.price_level.length - b.price_level.length);
+  else if (f.sort === "distance") vs.sort((a, b) => km(a) - km(b));
+  return vs;
+}
 function renderVenues() {
   const list = $("#list"); list.innerHTML = "";
-  $("#count").textContent = `${state.venues.length} places with tables`;
-  state.venues.forEach((v, i) => {
+  const venues = filteredVenues();
+  $("#count").textContent = `${venues.length} place${venues.length === 1 ? "" : "s"} with tables`;
+  if (!venues.length) { list.appendChild(el("div", "empty", "No places match your filters.")); return; }
+  venues.forEach((v, i) => {
     const card = el("div", "hotel"); card.style.animationDelay = `${i * 45}ms`;
     const slots = v.slots.slice(0, 3).map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("")
       + `<button class="slot-chip more" data-open="1">More…</button>`;
@@ -145,7 +174,7 @@ async function openVenue(v) {
       <div class="rating" style="margin-top:8px;display:flex;gap:8px;align-items:center">${stars(v.rating)}<span class="reviews">${v.reviews} Reviews</span></div>
       <div class="amenities">${(v.amenities || []).map((a) => `<span class="chip">${a}</span>`).join("")}</div>
       <p class="desc">${v.description || ""}</p>
-      <div style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 2px 8px">Available tonight · party of 2</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 2px 8px">Available ${dateLabel(state.book.date)} · party of ${state.book.party}</div>
       <div class="slots-row" id="detailSlots">${slots}</div>
       <div style="font-size:13px;color:var(--muted);font-weight:700;margin:20px 2px 10px">Recommendations</div>
       <div class="recs-in-detail" id="venueRecs"><div class="muted" style="margin:0 2px">Loading…</div></div>
@@ -158,8 +187,8 @@ async function openVenue(v) {
   $("#closeBtn").addEventListener("click", closeSheet);
   $$("#detailSlots .slot-chip").forEach((chip) => chip.addEventListener("click", () => quickBook(v, chip.dataset.slot)));
   $("#callVenue").addEventListener("click", () => callNow(
-    { venue: v.name, party_size: 2, time: to24(v.slots[0]), date: todayISO(), notes: "Party of 2", start_url: v.booking_url || "" },
-    v.name, v.photo));
+    { venue: v.name, party_size: state.book.party, time: to24(v.slots[0]), date: state.book.date,
+      notes: `Party of ${state.book.party}`, start_url: v.booking_url || "" }, v.name, v.photo));
   $("#recSend").addEventListener("click", () => postRec(v));
   loadVenueRecs(v.id);
 }
@@ -178,8 +207,64 @@ async function postRec(v) {
 }
 function closeSheet() { $("#sheet").hidden = true; }
 function quickBook(v, slot) {
-  bookNow({ venue: v.name, party_size: 2, time: to24(slot), date: todayISO(), notes: "Party of 2",
-    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for 2 at ${slot}` }, v.name, v.photo, slot);
+  const p = state.book.party, d = state.book.date;
+  bookNow({ venue: v.name, party_size: p, time: to24(slot), date: d, notes: `Party of ${p}`,
+    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for ${p} at ${slot}` }, v.name, v.photo, slot);
+}
+
+/* ---------- date / party / filter pickers ---------- */
+function openDatePicker() {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const wknd = new Date(t); wknd.setDate(t.getDate() + ((6 - t.getDay() + 7) % 7 || 6));
+  const presets = [["Today", ymd(t)], ["Tomorrow", ymd(new Date(t.getTime() + 864e5))], ["This weekend", ymd(wknd)]];
+  openSheetBody(`
+    <div class="picker-title">When are you dining?</div>
+    <div class="chip-row" id="dateChips">${presets.map(([l, v]) => `<button class="opt ${state.book.date === v ? "on" : ""}" data-d="${v}">${l}</button>`).join("")}</div>
+    <div class="pick-label">Or pick a date</div>
+    <input class="date-input" id="dateInput" type="date" value="${state.book.date}" min="${ymd(t)}">
+    <button class="apply" id="dateApply">Done</button>`);
+  $$("#dateChips .opt").forEach((o) => o.addEventListener("click", () => { $("#dateInput").value = o.dataset.d;
+    $$("#dateChips .opt").forEach((x) => x.classList.toggle("on", x === o)); }));
+  $("#dateApply").addEventListener("click", () => { state.book.date = $("#dateInput").value || state.book.date; closeSheet(); renderControls(); });
+}
+function openPartyPicker() {
+  openSheetBody(`
+    <div class="picker-title">How many guests?</div>
+    <div class="stepper"><button id="pMinus" aria-label="Fewer">−</button><div class="n" id="pN">${state.book.party}</div><button id="pPlus" aria-label="More">+</button></div>
+    <div class="pick-label" style="margin-top:20px">Popular</div>
+    <div class="chip-row" id="pChips">${[2, 4, 6, 8].map((n) => `<button class="opt" data-n="${n}">${n} guests</button>`).join("")}</div>
+    <button class="apply" id="pApply">Done</button>`);
+  let n = state.book.party;
+  const set = (x) => { n = Math.max(1, Math.min(20, x)); $("#pN").textContent = n; };
+  $("#pMinus").addEventListener("click", () => set(n - 1));
+  $("#pPlus").addEventListener("click", () => set(n + 1));
+  $$("#pChips .opt").forEach((o) => o.addEventListener("click", () => set(+o.dataset.n)));
+  $("#pApply").addEventListener("click", () => { state.book.party = n; closeSheet(); renderControls(); });
+}
+function openFilters() {
+  const f = state.filters;
+  const cuisines = [...new Set(state.venues.map((v) => v.cuisine))];
+  const prices = ["$$", "$$$"];
+  const sorts = [["rating", "Top rated"], ["price", "Price"], ["distance", "Distance"]];
+  openSheetBody(`
+    <div class="picker-title">Filters</div>
+    <div class="pick-label">Cuisine</div>
+    <div class="chip-row" id="fCuis">${cuisines.map((c) => `<button class="opt ${f.cuisines.has(c) ? "on" : ""}" data-c="${c}">${c}</button>`).join("")}</div>
+    <div class="pick-label">Price</div>
+    <div class="chip-row" id="fPrice">${prices.map((p) => `<button class="opt ${f.price.has(p) ? "on" : ""}" data-p="${p}">${p}</button>`).join("")}</div>
+    <div class="pick-label">Minimum rating</div>
+    <div class="chip-row" id="fRating">${[0, 3, 4, 5].map((r) => `<button class="opt ${f.minRating === r ? "on" : ""}" data-r="${r}">${r === 0 ? "Any" : r + "★+"}</button>`).join("")}</div>
+    <div class="pick-label">Sort by</div>
+    <div class="chip-row" id="fSort">${sorts.map(([v, l]) => `<button class="opt ${f.sort === v ? "on" : ""}" data-s="${v}">${l}</button>`).join("")}</div>
+    <button class="apply" id="fApply">Show results</button>
+    <button class="apply ghost" id="fClear">Clear all</button>`);
+  const toggle = (set, val, e) => { set.has(val) ? set.delete(val) : set.add(val); e.currentTarget.classList.toggle("on"); };
+  $$("#fCuis .opt").forEach((o) => o.addEventListener("click", (e) => toggle(f.cuisines, o.dataset.c, e)));
+  $$("#fPrice .opt").forEach((o) => o.addEventListener("click", (e) => toggle(f.price, o.dataset.p, e)));
+  $$("#fRating .opt").forEach((o) => o.addEventListener("click", () => { f.minRating = +o.dataset.r; $$("#fRating .opt").forEach((x) => x.classList.toggle("on", x === o)); }));
+  $$("#fSort .opt").forEach((o) => o.addEventListener("click", () => { f.sort = o.dataset.s; $$("#fSort .opt").forEach((x) => x.classList.toggle("on", x === o)); }));
+  $("#fApply").addEventListener("click", () => { closeSheet(); renderControls(); renderVenues(); });
+  $("#fClear").addEventListener("click", () => { f.cuisines.clear(); f.price.clear(); f.minRating = 0; f.sort = "rating"; closeSheet(); renderControls(); renderVenues(); });
 }
 
 /* ---------- AI ask ---------- */

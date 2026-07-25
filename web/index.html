@@ -68,9 +68,19 @@
           </form>
           <div class="ask-hint" id="askHint">Say it or type it — the agent books it for you.</div>
         </div>
+        <div class="controls">
+          <button class="ctl" id="dateBtn" type="button">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+            <span><span class="k">When</span><span class="v" id="dateVal">Today</span></span>
+          </button>
+          <button class="ctl" id="partyBtn" type="button">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 6a3 3 0 0 1 0 6M21 20c0-2.2-1.4-3.9-3.5-4.6"/></svg>
+            <span><span class="k">Party</span><span class="v" id="partyVal">2 guests</span></span>
+          </button>
+        </div>
         <div class="results-head">
           <span class="count" id="count">Loading…</span>
-          <button class="filters">Tonight
+          <button class="filters" id="filterBtn">Filters
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
           </button>
         </div>
