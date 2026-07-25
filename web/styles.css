@@ -439,3 +439,18 @@ body { letter-spacing: -.006em; -webkit-font-smoothing: antialiased; -moz-osx-fo
 .hotel .name, .sheet-body h2 { font-weight: 700; }
 .slot-chip, .chip, .ctl, .tab, .filters, .cta, .seg button { letter-spacing: -.01em; }
 .tab { font-weight: 600; }
+
+/* ---------- real venue photos (live provider) ---------- */
+.hotel .photo.real, .sheet-photo.real { background-size: cover; background-position: center; }
+.sheet-watermark { position: absolute; inset: 0; display: grid; place-items: center; font-size: 120px; opacity: .18; pointer-events: none; }
+
+/* ---------- menu highlights ---------- */
+.menu-head { font-size: 13px; color: var(--muted); font-weight: 700; margin: 20px 2px 8px; }
+.menu { display: flex; flex-direction: column; gap: 2px; }
+.menu-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 11px 2px; border-bottom: 1px solid var(--line); }
+.menu-item:last-child { border-bottom: 0; }
+.mi-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mi-name { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+.mi-note { color: var(--muted); font-size: 12.5px; }
+.mi-price { color: var(--teal-2); font-weight: 700; font-size: 14px; white-space: nowrap; }

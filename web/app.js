@@ -28,6 +28,11 @@ const CUISINE_EMOJI = {
   "Food hall": "🍜", Gastropub: "🍻", "Small plates": "🍢",
 };
 const cuisineEmoji = (c) => CUISINE_EMOJI[c] || "🍴";
+// Real venue photo when a live provider supplied one; else the cuisine gradient.
+const hasPhoto = (v) => Array.isArray(v.photos) && v.photos.length > 0;
+const photoBg = (v) => hasPhoto(v)
+  ? `linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,.4)), url('${v.photos[0]}')`
+  : (PHOTO[v.photo] || PHOTO.ember);
 
 const state = { token: localStorage.getItem("token") || "", user: null, venues: [], reservations: [],
   saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
@@ -198,8 +203,8 @@ function renderVenues() {
     const slots = v.slots.slice(0, 3).map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("")
       + `<button class="slot-chip more" data-open="1">More…</button>`;
     card.innerHTML = `
-      <div class="photo" style="background-image:${PHOTO[v.photo] || PHOTO.ember}">
-        <span class="watermark">${cuisineEmoji(v.cuisine)}</span>
+      <div class="photo${hasPhoto(v) ? " real" : ""}" style="background-image:${photoBg(v)}">
+        ${hasPhoto(v) ? "" : `<span class="watermark">${cuisineEmoji(v.cuisine)}</span>`}
         <span class="cuisine-tag">${cuisineEmoji(v.cuisine)} ${v.cuisine}</span>
         <button class="fav ${state.saved.has(v.id) ? "on" : ""}" aria-label="Save">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="${state.saved.has(v.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg>
@@ -228,8 +233,11 @@ function toggleSaved(id) { state.saved.has(id) ? state.saved.delete(id) : state.
 /* ---------- venue detail + recs ---------- */
 async function openVenue(v) {
   const slots = v.slots.map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("");
+  const menu = (v.menu || []).map((m) => `
+    <div class="menu-item"><div class="mi-main"><span class="mi-name">${m.name}</span>${m.note ? `<span class="mi-note">${m.note}</span>` : ""}</div><span class="mi-price">${m.price || ""}</span></div>`).join("");
   $("#sheetCard").innerHTML = `
-    <div class="sheet-photo" style="background-image:${PHOTO[v.photo] || PHOTO.ember}">
+    <div class="sheet-photo${hasPhoto(v) ? " real" : ""}" style="background-image:${photoBg(v)}">
+      ${hasPhoto(v) ? "" : `<span class="sheet-watermark">${cuisineEmoji(v.cuisine)}</span>`}
       <button class="close" id="closeSheet"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="sheet-body">
@@ -238,6 +246,7 @@ async function openVenue(v) {
       <div class="rating" style="margin-top:8px;display:flex;gap:8px;align-items:center">${stars(v.rating)}<span class="reviews">${v.reviews} Reviews</span></div>
       <div class="amenities">${(v.amenities || []).map((a) => `<span class="chip">${a}</span>`).join("")}</div>
       <p class="desc">${v.description || ""}</p>
+      ${menu ? `<div class="menu-head">Menu highlights</div><div class="menu">${menu}</div>` : ""}
       <div style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 2px 8px">Available ${dateLabel(state.book.date)} · party of ${state.book.party}</div>
       <div class="slots-row" id="detailSlots">${slots}</div>
       <div style="font-size:13px;color:var(--muted);font-weight:700;margin:20px 2px 10px">Recommendations</div>
