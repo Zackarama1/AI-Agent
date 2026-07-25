@@ -228,6 +228,49 @@ make docker-build && make docker-run          # http://localhost:8000
 > (`data/app.db`), which is **ephemeral** on both hosts — attach a volume or move
 > to Postgres (see below) before you rely on the data surviving a redeploy.
 
+## Real bookings + email confirmations (the plan)
+
+The app now has accounts, an animated booking flow, a calendar, and a community
+layer. To turn "the agent walks a demo form" into "it books a real table and the
+guest gets an email," here's the concrete path.
+
+**1. Point the agent at real reservation pages.** Booking already runs the
+browser agent — it just defaults to the built-in demo form. Give each venue a
+real `booking_url` (in `VENUES`) and add a per-site adapter in `adapters.py`
+(OpenTable/Resy/Tock/SevenRooms hints already stubbed). Set `ANTHROPIC_API_KEY`
+so the real Claude agent drives it, and `BROWSERBASE_API_KEY` so it runs on a
+hosted browser at scale (both already wired). Reality check: OpenTable/Resy/Tock
+have **no public booking API**, so form-filling + (later) phone calls are the
+mechanism — that's the product, not a missing key.
+
+**2. Take the guest's real details.** Signup already stores name + email. Add
+phone and any per-guest defaults to the profile, and pass them into the booking
+payload (the agent fills them into the venue form). Keep the `submit_payment`
+tool stubbed until you deliberately build a real card vault (Stripe).
+
+**3. Send the confirmation email.** When a booking flips to `confirmed`, send the
+guest an email. Don't run your own SMTP — use a transactional email API:
+- **Resend**, **Postmark**, or **SendGrid** (all have simple REST APIs + a free
+  tier). Store the key server-side (`RESEND_API_KEY`).
+- On confirm, POST to the provider with the guest's email, a nice HTML template
+  (venue, date/time, party, a calendar `.ics` attachment — you already generate
+  ICS in `store.to_ics`), and a booking reference.
+- Wire it in `_drive()` in `webserver.py`, right where the reservation status is
+  set to `confirmed`.
+- Verify a sending domain (SPF/DKIM) so mail lands in the inbox, not spam.
+
+**4. Make it trustworthy + compliant.**
+- Serve over HTTPS (the deploy configs do), hash passwords (done, pbkdf2),
+  and move sessions from in-memory to persistent (Redis) or signed JWTs.
+- Confirm the booking really succeeded before emailing (screenshot/text check),
+  and email a failure/needs-human notice otherwise — never a false confirmation.
+- Respect each site's terms; for the phone-agent path, disclose the AI caller
+  and honour two-party-consent states.
+
+**Minimal env for a real run:** `ANTHROPIC_API_KEY`, `BROWSERBASE_API_KEY`,
+`RESEND_API_KEY` (or Postmark/SendGrid), plus a Postgres URL when you outgrow
+SQLite. Everything else is already in place.
+
 ## Getting the rest online (what you still need)
 
 This is the honest map from "works on my laptop" to "real product on the App
