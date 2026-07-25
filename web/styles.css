@@ -398,3 +398,29 @@ body {
 .post-preview img { width: 100%; display: block; max-height: 200px; object-fit: cover; }
 .rec-photo { margin: 12px -2px 0; border-radius: 12px; overflow: hidden; }
 .rec-photo img { width: 100%; display: block; max-height: 260px; object-fit: cover; }
+
+/* ---------- polish: richer cards, greeting, skeletons ---------- */
+.greeting { padding: 14px 20px 0; }
+.greeting .hi { font-family: var(--serif); font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.greeting .sub { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+
+.hotel .photo { display: flex; align-items: flex-end; }
+.hotel .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.28)); pointer-events: none; }
+.watermark { position: absolute; inset: 0; display: grid; place-items: center; font-size: 88px; opacity: .22; filter: saturate(.6); pointer-events: none; }
+.cuisine-tag { position: absolute; top: 14px; left: 14px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.9); color: #232b32; font-size: 12px; font-weight: 700; padding: 6px 11px; border-radius: 999px; backdrop-filter: blur(6px); }
+.photo-price { position: absolute; bottom: 12px; left: 14px; z-index: 2; color: #fff; font-family: var(--serif); font-weight: 700; font-size: 15px; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+
+/* shimmer skeletons */
+.sk { background: var(--card); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); }
+.sk .sk-photo { height: 170px; } .sk .sk-body { padding: 16px 18px; }
+.sk-line { height: 14px; border-radius: 7px; background: var(--line); margin-bottom: 10px; }
+.sk-line.w60 { width: 60%; } .sk-line.w40 { width: 40%; } .sk-line.w30 { width: 30%; }
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card) 40%, #fff) 50%, transparent); animation: sh 1.2s infinite; }
+@media (prefers-color-scheme: dark) { .shimmer::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.06) 50%, transparent); } }
+@keyframes sh { 100% { transform: translateX(100%); } }
+
+/* nicer empty state */
+.empty .em-ic { font-size: 40px; margin-bottom: 8px; opacity: .8; }

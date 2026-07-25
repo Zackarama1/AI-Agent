@@ -20,6 +20,14 @@ const PHOTO = {
 };
 const AV_COLORS = ["#3fcabb", "#ff7a66", "#6c5ce7", "#f6b73c", "#4a90d9", "#e26aa0"];
 const EVT_COLORS = ["", "coral", "plum"];
+const CUISINE_EMOJI = {
+  Italian: "🍝", Steakhouse: "🥩", American: "🍔", "New American": "🍽️", Californian: "🥗",
+  Mediterranean: "🫒", Greek: "🇬🇷", Seafood: "🦪", French: "🥐", "Fine dining": "🍷",
+  Tasting: "👨‍🍳", Kaiseki: "🍱", Indian: "🍛", Thai: "🌶️", Mexican: "🌮", Oaxacan: "🌽",
+  Spanish: "🥘", British: "🍺", Deli: "🥪", Bakery: "🥐", Pizza: "🍕", Diner: "🍳",
+  "Food hall": "🍜", Gastropub: "🍻", "Small plates": "🍢",
+};
+const cuisineEmoji = (c) => CUISINE_EMOJI[c] || "🍴";
 
 const state = { token: localStorage.getItem("token") || "", user: null, venues: [], reservations: [],
   saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
@@ -107,6 +115,7 @@ async function startApp() {
   const pin = $('#view-discover .top-actions .pin'); if (pin) pin.addEventListener("click", useLocation);
   renderControls();
   renderSettings();
+  renderGreeting();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   await loadVenues();
   await loadReservations();
@@ -122,7 +131,20 @@ function switchView(name) {
 }
 
 /* ---------- venues / discover ---------- */
+function renderGreeting() {
+  const h = new Date().getHours();
+  const part = h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
+  const name = (state.user && state.user.name || "").split(" ")[0];
+  $("#greetHi").textContent = `Good ${part}${name ? ", " + name : ""}`;
+}
+function showSkeletons() {
+  const list = $("#list"); if (!list) return;
+  list.innerHTML = Array.from({ length: 4 }).map(() => `
+    <div class="sk"><div class="sk-photo shimmer"></div>
+      <div class="sk-body"><div class="sk-line w60"></div><div class="sk-line w40"></div><div class="sk-line w30"></div></div></div>`).join("");
+}
 async function loadVenues() {
+  showSkeletons();
   try { state.venues = await api("api/venues"); } catch (_) { state.venues = []; }
   renderVenues();
 }
@@ -152,13 +174,15 @@ function renderVenues() {
   const list = $("#list"); list.innerHTML = "";
   const venues = filteredVenues();
   $("#count").textContent = `${venues.length} place${venues.length === 1 ? "" : "s"} with tables`;
-  if (!venues.length) { list.appendChild(el("div", "empty", "No places match your filters.")); return; }
+  if (!venues.length) { list.appendChild(el("div", "empty", '<div class="em-ic">🔎</div>No places match your filters.<br><span class="muted">Try clearing a filter.</span>')); return; }
   venues.forEach((v, i) => {
     const card = el("div", "hotel"); card.style.animationDelay = `${i * 45}ms`;
     const slots = v.slots.slice(0, 3).map((s) => `<button class="slot-chip" data-slot="${s}">${s}</button>`).join("")
       + `<button class="slot-chip more" data-open="1">More…</button>`;
     card.innerHTML = `
       <div class="photo" style="background-image:${PHOTO[v.photo] || PHOTO.ember}">
+        <span class="watermark">${cuisineEmoji(v.cuisine)}</span>
+        <span class="cuisine-tag">${cuisineEmoji(v.cuisine)} ${v.cuisine}</span>
         <button class="fav ${state.saved.has(v.id) ? "on" : ""}" aria-label="Save">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="${state.saved.has(v.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg>
         </button>
@@ -544,7 +568,7 @@ async function loadCommunity() {
 function renderCommunity() {
   const wrap = $("#community"); if (!wrap) return; wrap.innerHTML = "";
   const feed = [...state.posts, ...(state.communityRecs || [])];
-  if (!feed.length) { wrap.appendChild(el("div", "empty", "No posts yet — share the first one!")); return; }
+  if (!feed.length) { wrap.appendChild(el("div", "empty", '<div class="em-ic">📸</div>No posts yet — share the first one!')); return; }
   feed.forEach((r) => wrap.appendChild(recCard(r, true)));
 }
 function recCard(r, showWhere) {
