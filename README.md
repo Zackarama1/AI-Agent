@@ -390,6 +390,7 @@ booking-agent-poc/
 ├── nlu.py                   # Natural-language/voice -> structured booking intent
 ├── store.py                 # SQLite users + reservations + recommendations + .ics
 ├── auth.py                  # email/password hashing + session tokens
+├── db.py                    # SQLite (default) / Postgres selector via DATABASE_URL
 ├── emailer.py               # confirmation emails (Resend/Postmark/SendGrid + dev outbox)
 ├── adapters.py              # Per-venue booking adapters (start_url + hints)
 ├── web/                     # The Concierge PWA (assistant + calendar + activity)

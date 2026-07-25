@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 import auth
 import emailer
+import phone
 import store
 from adapters import adapter_for, real_url_for_venue
 from agent_service import run_task_events
@@ -445,20 +446,42 @@ def cancel_reservation(rid: str, user: dict = Depends(require_user)):
 
 
 @app.post("/api/reservations/{rid}/call")
-def call_reservation(rid: str):
-    """Phone-agent booking. Stubbed until a voice provider is wired up
-    (Twilio Voice + a realtime voice model, or Vapi/Bland/Retell)."""
-    res = store.get_reservation(rid)
-    if not res:
-        raise HTTPException(404, "no such reservation")
-    return {
-        "configured": False,
-        "message": ("Phone-agent mode is not configured on this server. Wire up a "
-                    "voice provider (see README > Phone agent) and set the venue's "
-                    "phone number to enable AI calls."),
-        "would_call": res.get("phone") or "(no phone on file)",
-        "reservation_id": rid,
-    }
+async def call_reservation(rid: str, user: dict = Depends(require_user)):
+    """Phone-agent booking: the AI calls the venue. Streams the call over the
+    same /runs/{id}/stream channel. Uses a real voice provider when configured,
+    otherwise a simulated (dry-run) call."""
+    res = _owned(rid, user)
+    job = Job({"reservation": res}, "phone")
+    JOBS[job.id] = job
+    asyncio.create_task(_drive_call(job, res))
+    return {"reservation_id": rid, "run_id": job.id, "configured": phone.phone_configured()}
+
+
+async def _drive_call(job: Job, res: dict):
+    job.status = "running"
+    store.update_reservation(res["id"], status="pending", method="phone", run_id=job.id)
+    try:
+        mode = "real" if phone.phone_configured() else "dry_run"
+        async for ev in phone.run_call_events(res, mode=mode):
+            if ev.get("type") == "result":
+                job.outcome = ev.get("outcome")
+                job.note = ev.get("note")
+            await job.emit(ev)
+        job.status = "done"
+    except Exception as e:
+        await job.emit({"type": "error", "message": f"{type(e).__name__}: {e}"})
+        job.outcome = "failed"
+    finally:
+        status = {"success": "confirmed", "needs_human": "needs_human",
+                  "failed": "failed"}.get(job.outcome or "failed", "failed")
+        updated = store.update_reservation(res["id"], status=status)
+        if updated and updated.get("email") and status in ("confirmed", "failed"):
+            try:
+                await asyncio.to_thread(emailer.send_booking_email, updated, status, job.note or "")
+            except Exception:
+                pass
+        await job.emit({"type": "end"})
+        job.finished.set()
 
 
 @app.get("/api/reservations.ics")

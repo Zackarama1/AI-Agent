@@ -6,3 +6,7 @@ pyyaml>=6.0
 # Local server / mobile app
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
+
+# Postgres backend (only used when DATABASE_URL is a postgres:// URL;
+# SQLite is the default and needs nothing extra)
+psycopg[binary]>=3.1

@@ -332,3 +332,9 @@ body {
 .add-rec button { flex: none; border: none; background: var(--teal); color: #fff; font-weight: 700; border-radius: 12px; padding: 0 16px; cursor: pointer; }
 .recs-in-detail { margin-top: 8px; }
 .recs-in-detail .rec { margin: 0 0 12px; box-shadow: none; border: 1px solid var(--line); }
+
+/* ---------- phone-call transcript ---------- */
+.transcript { display: grid; gap: 8px; margin: 6px 2px 4px; text-align: left; }
+.bubble { max-width: 82%; padding: 10px 13px; border-radius: 16px; font-size: 14px; line-height: 1.4; animation: rise .2s ease both; }
+.bubble.ai { justify-self: end; background: var(--teal); color: #fff; border-bottom-right-radius: 5px; }
+.bubble.host { justify-self: start; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 5px; }

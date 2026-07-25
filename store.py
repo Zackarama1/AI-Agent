@@ -7,28 +7,25 @@ online, swap this module's body for Postgres (the function signatures can stay
 the same) — see the deployment notes in the README.
 """
 
-import sqlite3
 import threading
 import time
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "app.db"
+import db
+
 _LOCK = threading.Lock()
-_CONN: sqlite3.Connection | None = None
+_INITED = False
 
 STATUSES = ("draft", "pending", "confirmed", "failed", "needs_human", "cancelled")
 METHODS = ("agent", "phone", "manual")
 
 
-def _conn() -> sqlite3.Connection:
-    global _CONN
-    if _CONN is None:
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _CONN = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _CONN.row_factory = sqlite3.Row
-        _CONN.execute("""
+def _conn():
+    global _INITED
+    conn = db.get_conn()
+    if not _INITED:
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS reservations (
                 id           TEXT PRIMARY KEY,
                 user_id      TEXT,
@@ -48,7 +45,7 @@ def _conn() -> sqlite3.Connection:
                 run_id       TEXT
             )
         """)
-        _CONN.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id            TEXT PRIMARY KEY,
                 email         TEXT UNIQUE,
@@ -57,7 +54,7 @@ def _conn() -> sqlite3.Connection:
                 created       REAL
             )
         """)
-        _CONN.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS recommendations (
                 id        TEXT PRIMARY KEY,
                 venue_id  TEXT,
@@ -70,8 +67,9 @@ def _conn() -> sqlite3.Connection:
                 created   REAL
             )
         """)
-        _CONN.commit()
-    return _CONN
+        conn.commit()
+        _INITED = True
+    return conn
 
 
 # ---- users ----
@@ -139,10 +137,10 @@ def like_recommendation(rid: str) -> dict | None:
 
 def recommendations_count() -> int:
     with _LOCK:
-        return _conn().execute("SELECT COUNT(*) FROM recommendations").fetchone()[0]
+        return _conn().execute("SELECT COUNT(*) AS n FROM recommendations").fetchone()["n"]
 
 
-def _row_to_dict(r: sqlite3.Row) -> dict:
+def _row_to_dict(r) -> dict:
     d = dict(r)
     # convenience: an ISO start datetime for clients/calendars
     if d.get("date") and d.get("time"):
@@ -186,7 +184,7 @@ def create_reservation(data: dict) -> dict:
     return _row_to_dict(r)
 
 
-def row_from(rid: str) -> sqlite3.Row:
+def row_from(rid: str):
     return _conn().execute("SELECT * FROM reservations WHERE id=?", (rid,)).fetchone()
 
 

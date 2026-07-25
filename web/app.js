@@ -150,12 +150,16 @@ async function openVenue(v) {
       <div style="font-size:13px;color:var(--muted);font-weight:700;margin:20px 2px 10px">Recommendations</div>
       <div class="recs-in-detail" id="venueRecs"><div class="muted" style="margin:0 2px">Loading…</div></div>
       <div class="add-rec"><input id="recInput" placeholder="Recommend this place…" maxlength="180"><button id="recSend">Post</button></div>
-      <button class="cta ghost" id="closeBtn" style="margin-top:16px">Close</button>
+      <button class="cta ghost" id="callVenue" style="margin-top:16px">📞 Have the AI call instead</button>
+      <button class="cta ghost" id="closeBtn" style="margin-top:10px">Close</button>
     </div>`;
   $("#sheet").hidden = false;
   $("#closeSheet").addEventListener("click", closeSheet);
   $("#closeBtn").addEventListener("click", closeSheet);
   $$("#detailSlots .slot-chip").forEach((chip) => chip.addEventListener("click", () => quickBook(v, chip.dataset.slot)));
+  $("#callVenue").addEventListener("click", () => callNow(
+    { venue: v.name, party_size: 2, time: to24(v.slots[0]), date: todayISO(), notes: "Party of 2", start_url: v.booking_url || "" },
+    v.name, v.photo));
   $("#recSend").addEventListener("click", () => postRec(v));
   loadVenueRecs(v.id);
 }
@@ -195,14 +199,18 @@ async function askConcierge(text) {
       <span class="chip"><b style="color:var(--muted);font-weight:600">Time:</b> ${to12(it.time)}</span>
     </div>${a}
     <button class="cta" id="confirmBook">✨ Book with AI</button>
-    <button class="cta ghost" id="closeBtn">Cancel</button>`);
+    <button class="cta ghost" id="callInstead">📞 Have the AI call the venue</button>
+    <button class="cta ghost" id="closeBtn" style="margin-top:10px">Cancel</button>`);
   $("#closeSheet").addEventListener("click", closeSheet);
   $("#closeBtn").addEventListener("click", closeSheet);
   const known = state.venues.find((v) => it.venue && v.name.toLowerCase().includes(it.venue.toLowerCase()));
-  $("#confirmBook").addEventListener("click", () => bookNow({
+  const payload = {
     venue: it.venue || "the venue", party_size: it.party_size, time: it.time, date: it.date,
     notes: it.notes || `Party of ${it.party_size}`, start_url: "", source_prompt: it.source_prompt || text,
-  }, it.venue || "your table", (known && known.photo) || "slate", to12(it.time)));
+  };
+  const photo = (known && known.photo) || "slate";
+  $("#confirmBook").addEventListener("click", () => bookNow(payload, it.venue || "your table", photo, to12(it.time)));
+  $("#callInstead").addEventListener("click", () => callNow(payload, it.venue || "the venue", photo));
 }
 
 /* ---------- voice ---------- */
@@ -326,6 +334,53 @@ function confetti() {
       { duration: 900 + Math.random() * 700, delay: Math.random() * 250, easing: "cubic-bezier(.2,.6,.3,1)" })
       .onfinish = () => bit.remove();
   }
+}
+
+/* ---------- phone-agent (AI calls the venue) ---------- */
+async function callNow(payload, venueName, photo) {
+  payload = { ...payload, method: "phone" };
+  openSheetBody(`
+    <div class="book-anim" id="bkAnim">
+      <div class="ring-wrap">
+        <svg width="132" height="132" viewBox="0 0 132 132">
+          <defs><linearGradient id="bookgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fcabb"/><stop offset="1" stop-color="#6c5ce7"/></linearGradient></defs>
+          <circle class="ring-bg" cx="66" cy="66" r="58"/><circle class="ring-fg" id="ringFg" cx="66" cy="66" r="58"/>
+        </svg>
+        <div class="ring-emoji" id="ringEmoji">📞</div>
+        <div class="ring-check"><svg width="72" height="72" viewBox="0 0 72 72"><path d="M21 38 l10 10 l20 -24"/></svg></div>
+        <div class="confetti" id="confetti"></div>
+      </div>
+      <div class="phase" id="phase">Calling ${venueName}…</div>
+      <div class="phase-sub" id="phaseSub">Connecting…</div>
+      <div class="transcript" id="transcript"></div>
+      <div class="book-summary" id="bkSummary"></div>
+    </div>
+    <button class="cta ghost" id="bk-done" hidden>View in calendar</button>`);
+  setProgress(0.08);
+  let res, run;
+  try { res = await api("api/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
+  catch (_) { setPhaseFail("Couldn't start the call."); return; }
+  try { run = await api(`api/reservations/${res.id}/call`, { method: "POST" }); }
+  catch (_) { setPhaseFail("Couldn't place the call."); return; }
+  $("#bk-done").addEventListener("click", () => { closeSheet(); switchView("calendar"); });
+  streamCall(run.run_id, { venue: venueName, party: payload.party_size, when: to12(payload.time), date: payload.date });
+}
+function streamCall(runId, summary) {
+  const src = new EventSource(urlOf(`api/runs/${runId}/stream`));
+  src.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    if (ev.type === "phase") { setPhase(ev.emoji, ev.title, ev.sub); setProgress(ev.progress); }
+    else if (ev.type === "transcript") addBubble(ev.speaker, ev.text);
+    else if (ev.type === "result") finishBooking(ev, summary);
+    else if (ev.type === "error") setPhaseFail(ev.message || "The call didn’t go through.");
+    else if (ev.type === "end") { src.close(); loadReservations(); }
+  };
+  src.onerror = () => { src.close(); };
+}
+function addBubble(speaker, text) {
+  const t = $("#transcript"); if (!t) return;
+  const b = el("div", "bubble " + (speaker === "ai" ? "ai" : "host")); b.textContent = text;
+  t.appendChild(b); b.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 /* ---------- reservations + apple calendar ---------- */
