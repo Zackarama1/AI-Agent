@@ -38,8 +38,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import auth
+import emailer
 import store
-from adapters import adapter_for
+from adapters import adapter_for, real_url_for_venue
 from agent_service import run_task_events
 from jobs import JOBS, Job
 from nlu import parse_booking
@@ -141,14 +142,27 @@ async def _drive(job: Job, reservation_id: str | None = None):
         if reservation_id:
             status = {"success": "confirmed", "needs_human": "needs_human",
                       "failed": "failed"}.get(job.outcome or "failed", "failed")
-            store.update_reservation(reservation_id, status=status)
+            res = store.update_reservation(reservation_id, status=status)
+            # Email the guest the moment we know the outcome. Non-fatal on error.
+            if res and res.get("email") and status in ("confirmed", "failed", "needs_human"):
+                try:
+                    await asyncio.to_thread(emailer.send_booking_email, res, status, job.note or "")
+                except Exception as e:
+                    await job.emit({"type": "status", "message": f"(email skipped: {e})"})
         await job.emit({"type": "end"})
         job.finished.set()
 
 
 def _booking_task(res: dict) -> dict:
     when = f"{res.get('date')} {res.get('time')}".strip()
-    adapter = adapter_for(res.get("start_url", ""), res.get("venue", ""))
+    # When REAL_BOOKING is on, route a known venue to its real reservation page;
+    # otherwise (and by default) the adapter falls back to the local demo flow.
+    start_url = res.get("start_url", "")
+    if not start_url:
+        v = VENUE_BY_NAME.get(res.get("venue", ""))
+        if v:
+            start_url = real_url_for_venue(v["id"]) or ""
+    adapter = adapter_for(start_url, res.get("venue", ""))
     instruction = (
         f"Book a table for {res.get('party_size')} at {res.get('venue') or 'the venue'} "
         f"on {when} under the name '{res.get('name') or 'the guest'}'"
@@ -396,6 +410,7 @@ def reservations(user: dict = Depends(require_user)):
 def create_reservation(intent: Intent, user: dict = Depends(require_user)):
     data = intent.model_dump()
     data["user_id"] = user["id"]
+    data["email"] = user["email"]
     if not data.get("name"):
         data["name"] = user["name"]
     return store.create_reservation(data)

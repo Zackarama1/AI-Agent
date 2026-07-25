@@ -388,7 +388,9 @@ booking-agent-poc/
 ├── agent_service.py         # Async agent runner (real + dry-run) that yields events
 ├── jobs.py                  # In-memory run store, fans events out to SSE clients
 ├── nlu.py                   # Natural-language/voice -> structured booking intent
-├── store.py                 # SQLite reservations + .ics calendar export
+├── store.py                 # SQLite users + reservations + recommendations + .ics
+├── auth.py                  # email/password hashing + session tokens
+├── emailer.py               # confirmation emails (Resend/Postmark/SendGrid + dev outbox)
 ├── adapters.py              # Per-venue booking adapters (start_url + hints)
 ├── web/                     # The Concierge PWA (assistant + calendar + activity)
 │   ├── index.html

@@ -39,6 +39,7 @@ def _conn() -> sqlite3.Connection:
                 date         TEXT,   -- YYYY-MM-DD
                 time         TEXT,   -- HH:MM (24h)
                 name         TEXT,
+                email        TEXT,
                 phone        TEXT,
                 notes        TEXT,
                 status       TEXT,
@@ -163,6 +164,7 @@ def create_reservation(data: dict) -> dict:
         "date": data.get("date") or "",
         "time": data.get("time") or "",
         "name": data.get("name") or "",
+        "email": data.get("email") or "",
         "phone": data.get("phone") or "",
         "notes": data.get("notes") or "",
         "status": data.get("status") if data.get("status") in STATUSES else "draft",
@@ -173,9 +175,9 @@ def create_reservation(data: dict) -> dict:
     with _LOCK:
         _conn().execute(
             """INSERT INTO reservations
-               (id, user_id, created, venue, start_url, party_size, date, time, name, phone,
+               (id, user_id, created, venue, start_url, party_size, date, time, name, email, phone,
                 notes, status, method, source_prompt, run_id)
-               VALUES (:id,:user_id,:created,:venue,:start_url,:party_size,:date,:time,:name,
+               VALUES (:id,:user_id,:created,:venue,:start_url,:party_size,:date,:time,:name,:email,
                        :phone,:notes,:status,:method,:source_prompt,:run_id)""",
             row,
         )

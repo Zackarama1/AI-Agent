@@ -13,12 +13,34 @@ lookup from your own DB). Keep hints short and factual — they go straight into
 the agent's instructions.
 """
 
+import os
 from urllib.parse import urlparse
 
 # Built-in local practice restaurant (multi-step: party/date/time -> availability
 # -> guest details -> confirm). Used when no real URL is given, so a booking
 # always has a realistic target to run against.
 DEMO_RESERVE_URL = "/demo/reserve"
+
+# Map a venue id to its REAL reservation page. Left as examples — replace each
+# with the venue's actual booking URL (OpenTable/Resy/Tock/its own site). These
+# are only used when REAL_BOOKING=1 is set in the environment; otherwise every
+# booking routes to the local demo flow so the app works with no keys.
+REAL_VENUE_URLS = {
+    # "nopa": "https://www.opentable.com/r/nopa-san-francisco",
+    # "zuni": "https://resy.com/cities/sf/zuni-cafe",
+    # "state-bird": "https://resy.com/cities/sf/state-bird-provisions",
+}
+
+
+def real_booking_enabled() -> bool:
+    return os.getenv("REAL_BOOKING", "").strip() not in ("", "0", "false", "False")
+
+
+def real_url_for_venue(venue_id: str) -> str | None:
+    """The venue's real booking URL, but only when REAL_BOOKING is turned on."""
+    if not real_booking_enabled():
+        return None
+    return REAL_VENUE_URLS.get(venue_id)
 
 _DOMAIN_HINTS = {
     "opentable.com": (
