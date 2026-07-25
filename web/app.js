@@ -25,7 +25,17 @@ const state = { token: localStorage.getItem("token") || "", user: null, venues: 
   saved: new Set(JSON.parse(localStorage.getItem("saved") || "[]")), mode: "",
   calMonth: firstOfMonth(new Date()), calSel: ymd(new Date()),
   book: { date: ymd(new Date()), party: 2 },
-  filters: { cuisines: new Set(), price: new Set(), minRating: 0, sort: "rating" } };
+  filters: { cuisines: new Set(), price: new Set(), minRating: 0, sort: "rating" },
+  settings: { theme: localStorage.getItem("theme") || "auto", aiMode: localStorage.getItem("aiMode") || "autopilot", loc: null },
+  cards: JSON.parse(localStorage.getItem("cards") || "[]"),
+  posts: [] };
+
+function haptic(ms = 8) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+function applyTheme() {
+  const t = state.settings.theme, r = document.documentElement;
+  if (t === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", t);
+}
+applyTheme();
 
 /* ================= AUTH ================= */
 let authMode = "in";
@@ -85,7 +95,18 @@ async function startApp() {
   $("#filterBtn").addEventListener("click", openFilters);
   $("#calPrev").addEventListener("click", () => moveMonth(-1));
   $("#calNext").addEventListener("click", () => moveMonth(1));
+  // settings hub
+  $$("#themeSeg button").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.t)));
+  $$("#aiSeg button").forEach((b) => b.addEventListener("click", () => setAiMode(b.dataset.m)));
+  $("#locBtn").addEventListener("click", useLocation);
+  $("#addCard").addEventListener("click", openAddCard);
+  // community composer
+  $("#postPhoto").addEventListener("change", onPickPhoto);
+  $("#postSend").addEventListener("click", submitPost);
+  // location pin in the top bar also triggers location
+  const pin = $('#view-discover .top-actions .pin'); if (pin) pin.addEventListener("click", useLocation);
   renderControls();
+  renderSettings();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   await loadVenues();
   await loadReservations();
@@ -120,7 +141,7 @@ function filteredVenues() {
     (!f.cuisines.size || f.cuisines.has(v.cuisine)) &&
     (!f.price.size || f.price.has(v.price_level)) &&
     v.rating >= f.minRating);
-  const km = (v) => parseFloat(v.distance) || 99;
+  const km = (v) => { const d = distanceKm(v); return d != null ? d : (parseFloat(v.distance) || 99); };
   if (f.sort === "rating") vs.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
   else if (f.sort === "price") vs.sort((a, b) => a.price_level.length - b.price_level.length);
   else if (f.sort === "distance") vs.sort((a, b) => km(a) - km(b));
@@ -143,7 +164,7 @@ function renderVenues() {
       </div>
       <div class="body">
         <div class="row1"><h3 class="name">${v.name}</h3><div class="price-level">${v.price_level}</div></div>
-        <div class="loc"><span class="pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6c0 4 6 10 6 10s6-6 6-10a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg></span>${v.cuisine} <span class="dot">·</span> ${v.neighborhood}</div>
+        <div class="loc"><span class="pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6c0 4 6 10 6 10s6-6 6-10a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg></span>${v.cuisine} <span class="dot">·</span> ${distLabel(v)}</div>
         <div class="rating">${stars(v.rating)}<span class="reviews">${v.reviews} Reviews</span></div>
         <div class="slots-row">${slots}</div>
       </div>`;
@@ -208,8 +229,11 @@ async function postRec(v) {
 function closeSheet() { $("#sheet").hidden = true; }
 function quickBook(v, slot) {
   const p = state.book.party, d = state.book.date;
-  bookNow({ venue: v.name, party_size: p, time: to24(slot), date: d, notes: `Party of ${p}`,
-    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for ${p} at ${slot}` }, v.name, v.photo, slot);
+  const payload = { venue: v.name, party_size: p, time: to24(slot), date: d, notes: `Party of ${p}`,
+    start_url: v.booking_url || "", source_prompt: `Book ${v.name} for ${p} at ${slot}` };
+  haptic();
+  if (state.settings.aiMode === "ask") confirmThenBook(payload, v.name, v.photo, slot);
+  else bookNow(payload, v.name, v.photo, slot);
 }
 
 /* ---------- date / party / filter pickers ---------- */
@@ -509,11 +533,14 @@ function renderAgenda(list) {
 
 /* ---------- community ---------- */
 async function loadCommunity() {
-  let recs = [];
-  try { recs = await api("api/community"); } catch (_) {}
-  const wrap = $("#community"); wrap.innerHTML = "";
-  if (!recs.length) { wrap.appendChild(el("div", "empty", "No recommendations yet.")); return; }
-  recs.forEach((r) => wrap.appendChild(recCard(r, true)));
+  try { state.communityRecs = await api("api/community"); } catch (_) { state.communityRecs = state.communityRecs || []; }
+  renderCommunity();
+}
+function renderCommunity() {
+  const wrap = $("#community"); if (!wrap) return; wrap.innerHTML = "";
+  const feed = [...state.posts, ...(state.communityRecs || [])];
+  if (!feed.length) { wrap.appendChild(el("div", "empty", "No posts yet — share the first one!")); return; }
+  feed.forEach((r) => wrap.appendChild(recCard(r, true)));
 }
 function recCard(r, showWhere) {
   const card = el("div", "rec");
@@ -526,6 +553,7 @@ function recCard(r, showWhere) {
       <div class="rec-stars">${"★".repeat(r.rating || 5)}</div>
     </div>
     <div class="rec-text">${escapeHtml(r.text)}</div>
+    ${r.image ? `<div class="rec-photo"><img src="${r.image}" alt=""></div>` : ""}
     <div class="rec-actions">
       <button class="rec-btn like"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg><span>${r.likes || 0}</span></button>
       <button class="rec-btn share"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13"/></svg>Share</button>
@@ -549,8 +577,107 @@ function paintProfile() {
   $("#pavatar").textContent = (u.name || "G")[0].toUpperCase();
   $("#pname").textContent = u.name || "Guest";
   $("#pemail").textContent = u.email || "—";
-  $("#pmode").textContent = state.mode || "—";
   $("#ptrips").textContent = String(state.reservations.filter((r) => r.status === "confirmed").length);
+  renderSettings();
+}
+function distLabel(v) {
+  const d = distanceKm(v);
+  if (d != null) return `${d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1) + " km"} away`;
+  return v.neighborhood;
+}
+
+/* ---------- settings: theme + AI mode ---------- */
+function setTheme(t) { state.settings.theme = t; localStorage.setItem("theme", t); applyTheme(); renderSettings(); haptic(); }
+function setAiMode(m) { state.settings.aiMode = m; localStorage.setItem("aiMode", m); renderSettings(); haptic(); }
+function renderSettings() {
+  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.t === state.settings.theme));
+  $$("#aiSeg button").forEach((b) => b.classList.toggle("on", b.dataset.m === state.settings.aiMode));
+  const hint = $("#aiHint"); if (hint) hint.textContent = state.settings.aiMode === "autopilot"
+    ? "Autopilot books instantly — the AI takes control end to end."
+    : "Ask-first shows a quick confirm before every booking, so you stay in control.";
+  const ls = $("#locStatus"); if (ls) ls.textContent = state.settings.loc ? "Location on" : "Location off";
+  const lb = $("#locBtn"); if (lb) lb.textContent = state.settings.loc ? "Turn off" : "Use my location";
+  renderWallet();
+  const av = $("#composerAv"); if (av && state.user) av.textContent = (state.user.name || "G")[0].toUpperCase();
+}
+
+/* ---------- location + distance ---------- */
+function useLocation() {
+  if (state.settings.loc) { state.settings.loc = null; renderSettings(); renderVenues(); toast("Location off"); return; }
+  if (!navigator.geolocation) { toast("Location isn't available in this browser."); return; }
+  toast("Getting your location…");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { state.settings.loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      state.filters.sort = "distance"; renderSettings(); renderControls(); renderVenues(); haptic(); toast("Sorted by distance from you"); },
+    () => toast("Couldn't get your location — allow it in your browser."), { timeout: 8000 });
+}
+function distanceKm(v) {
+  const l = state.settings.loc; if (!l || v.lat == null) return null;
+  const R = 6371, dLat = (v.lat - l.lat) * Math.PI / 180, dLng = (v.lng - l.lng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(l.lat * Math.PI / 180) * Math.cos(v.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/* ---------- payment wallet (demo: last4 only) ---------- */
+function renderWallet() {
+  const w = $("#wallet"); if (!w) return;
+  if (!state.cards.length) { w.innerHTML = `<p class="muted" style="margin:8px 2px">No cards yet.</p>`; return; }
+  w.innerHTML = state.cards.map((c, i) => `
+    <div class="card-row"><div class="card-brand ${c.brand}">${c.brand.toUpperCase()}</div>
+      <div><div class="card-num">···· ${c.last4}</div><div class="card-exp">Expires ${c.exp}</div></div>
+      <button class="card-del" data-i="${i}" aria-label="Remove">✕</button></div>`).join("");
+  $$("#wallet .card-del").forEach((b) => b.addEventListener("click", () => { state.cards.splice(+b.dataset.i, 1); saveCards(); renderWallet(); haptic(); }));
+}
+function saveCards() { localStorage.setItem("cards", JSON.stringify(state.cards)); }
+function openAddCard() {
+  openSheetBody(`
+    <div class="picker-title">Add a card</div>
+    <div class="field"><label>Card number</label><input id="ccNum" inputmode="numeric" placeholder="4242 4242 4242 4242"></div>
+    <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label>Expiry</label><input id="ccExp" placeholder="MM/YY"></div>
+      <div class="field" style="flex:1"><label>CVC</label><input id="ccCvc" inputmode="numeric" placeholder="123"></div></div>
+    <button class="apply" id="ccSave">Save card</button>
+    <p class="set-hint" style="margin-top:12px">Demo only stores the brand + last 4 digits locally. In production this form is Stripe Elements and the number never reaches our server.</p>`);
+  $("#ccSave").addEventListener("click", () => {
+    const num = ($("#ccNum").value || "").replace(/\s+/g, ""), exp = $("#ccExp").value || "";
+    if (num.length < 12) { toast("Enter a full card number."); return; }
+    const brand = num[0] === "4" ? "visa" : num[0] === "5" ? "mc" : "card";
+    state.cards.push({ brand, last4: num.slice(-4), exp: exp || "12/28" });
+    saveCards(); closeSheet(); renderWallet(); haptic(); toast("Card saved to your wallet");
+  });
+}
+function cardOnFileRow() {
+  return state.cards.length ? `<p class="card-on-file">💳 Using ···· ${state.cards[0].last4} on file to hold the table</p>` : "";
+}
+
+/* ---------- community photo posts ---------- */
+let pendingPhoto = null;
+function onPickPhoto(e) {
+  const file = e.target.files && e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => { pendingPhoto = r.result; const p = $("#postPreview"); p.hidden = false; p.innerHTML = `<img src="${pendingPhoto}" alt="">`; };
+  r.readAsDataURL(file);
+}
+function submitPost() {
+  const text = ($("#postText").value || "").trim();
+  if (!text && !pendingPhoto) { toast("Add a photo or a few words."); return; }
+  state.posts.unshift({ id: "local" + Date.now(), author: (state.user && state.user.name) || "You",
+    venue: "", cuisine: "", rating: 5, text, likes: 0, image: pendingPhoto });
+  $("#postText").value = ""; pendingPhoto = null; $("#postPreview").hidden = true; $("#postPreview").innerHTML = "";
+  haptic(); renderCommunity(); toast("Shared to the community ✨");
+}
+
+/* ---------- ask-first confirm gate ---------- */
+function confirmThenBook(payload, name, photo, slot) {
+  openSheetBody(`
+    <div class="book-head"><h3>Confirm booking</h3></div>
+    <div class="amenities" style="margin:6px 0 12px">
+      <span class="chip">${name}</span><span class="chip">Party of ${payload.party_size}</span>
+      <span class="chip">${dateLabel(payload.date)}</span><span class="chip">${slot}</span></div>
+    ${cardOnFileRow()}
+    <button class="cta" id="cok">✨ Book it</button>
+    <button class="cta ghost" id="cx">Cancel</button>`);
+  $("#cok").addEventListener("click", () => { haptic(12); bookNow(payload, name, photo, slot); });
+  $("#cx").addEventListener("click", closeSheet);
 }
 
 /* ---------- helpers ---------- */

@@ -1,6 +1,6 @@
 // Minimal service worker: caches the app shell so the PWA opens offline.
 // API calls (/api/*, /demo/*) always go to the network.
-const CACHE = "stayable-v7";
+const CACHE = "stayable-v8";
 const SHELL = [
   ".",
   "index.html",

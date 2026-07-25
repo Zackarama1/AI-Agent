@@ -295,6 +295,15 @@ VENUES = [
 VENUE_BY_ID = {v["id"]: v for v in VENUES}
 VENUE_BY_NAME = {v["name"]: v for v in VENUES}
 
+# Approx coordinates (San Francisco) so the app can show real distance from the
+# user's location. When you wire a live venue-data provider (Yelp/Google Places),
+# these come from the API instead.
+VENUE_COORDS = {
+    "tasting-room": (37.7765, -122.4241), "nopa": (37.7748, -122.4376),
+    "zuni": (37.7727, -122.4229), "state-bird": (37.7840, -122.4324),
+    "kokkari": (37.7969, -122.3999), "rich-table": (37.7743, -122.4227),
+}
+
 
 @app.get("/api/venues")
 def list_venues(q: str = ""):
@@ -303,7 +312,11 @@ def list_venues(q: str = ""):
               if not q or q in v["name"].lower() or q in v["cuisine"].lower()
               or q in v["neighborhood"].lower()]
     # start_url is blank -> the booking adapter routes to the demo reservation flow.
-    return [{**v, "booking_url": ""} for v in venues]
+    out = []
+    for v in venues:
+        lat, lng = VENUE_COORDS.get(v["id"], (None, None))
+        out.append({**v, "booking_url": "", "lat": lat, "lng": lng})
+    return out
 
 
 # ---------- recommendations / community ----------

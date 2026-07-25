@@ -104,23 +104,65 @@
       <!-- COMMUNITY -->
       <div class="view" id="view-community" hidden>
         <header class="topbar"><span></span><h1>Community</h1><span></span></header>
-        <p class="section-sub">What people are booking and loving right now.</p>
+        <div class="composer">
+          <div class="composer-row">
+            <div class="rec-av" id="composerAv" style="background:var(--teal)">Z</div>
+            <input id="postText" placeholder="Share a spot, a dish, a tip…" maxlength="240">
+          </div>
+          <div id="postPreview" class="post-preview" hidden></div>
+          <div class="composer-actions">
+            <label class="chip photo-btn">📷 Photo<input id="postPhoto" type="file" accept="image/*" hidden></label>
+            <button class="chip post-send" id="postSend">Share</button>
+          </div>
+        </div>
         <div id="community"></div>
       </div>
 
-      <!-- PROFILE -->
+      <!-- PROFILE / SETTINGS -->
       <div class="view" id="view-profile" hidden>
         <header class="topbar"><span></span><h1>Profile</h1><span></span></header>
         <div class="profile-card">
           <div class="avatar" id="pavatar">Z</div>
           <div style="font-family:var(--serif);font-size:20px;font-weight:700" id="pname">Guest</div>
           <div class="p-row"><span>Email</span><b id="pemail">—</b></div>
-          <div class="p-row"><span>Booking mode</span><b id="pmode">—</b></div>
           <div class="p-row"><span>Tables booked</span><b id="ptrips">0</b></div>
         </div>
-        <div class="profile-card">
-          <div class="p-row" style="border:none"><span>How it works</span></div>
-          <p class="desc" style="margin:0 0 14px">Ask in plain words or tap a place and choose <b>Book with AI</b> — an agent fills the reservation for you and drops the confirmed table into your calendar.</p>
+
+        <div class="settings-group">Appearance</div>
+        <div class="profile-card set-card">
+          <div class="set-row"><span>Theme</span>
+            <div class="seg small" id="themeSeg">
+              <button data-t="auto" class="on">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">AI concierge</div>
+        <div class="profile-card set-card">
+          <div class="set-row"><span>Mode</span>
+            <div class="seg small" id="aiSeg">
+              <button data-m="autopilot" class="on">Autopilot</button><button data-m="ask">Ask first</button>
+            </div>
+          </div>
+          <p class="set-hint" id="aiHint">Autopilot books instantly. Ask-first shows a quick confirm before every booking.</p>
+        </div>
+
+        <div class="settings-group">Location</div>
+        <div class="profile-card set-card">
+          <div class="set-row"><span id="locStatus">Location off</span>
+            <button class="ghost-btn" id="locBtn">Use my location</button>
+          </div>
+          <p class="set-hint">Sorts restaurants by real distance from you.</p>
+        </div>
+
+        <div class="settings-group">Payment methods</div>
+        <div class="profile-card set-card">
+          <div id="wallet"></div>
+          <button class="cta ghost" id="addCard" style="margin:8px 0 0">＋ Add a card</button>
+          <p class="set-hint">Held on file for venues that require a card. In this demo only the last 4 digits are kept — real cards go through Stripe and never touch our server.</p>
+        </div>
+
+        <div class="profile-card set-card" style="margin-top:14px">
           <button class="cta ghost" id="logout" style="margin:0">Sign out</button>
         </div>
       </div>
