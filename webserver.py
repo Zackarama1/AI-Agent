@@ -174,46 +174,54 @@ def health():
     }
 
 
-HOTELS = [
-    {"id": "grand-royal", "name": "Grand Royal Hotel", "location": "Wembley, London",
-     "distance": "2 km", "rating": 4, "reviews": 80, "price": 180, "photo": "pool",
-     "amenities": ["Infinity pool", "Free Wi-Fi", "Breakfast", "Gym"],
-     "description": "A rooftop infinity pool over the skyline, generous suites and a "
-                    "celebrated breakfast — a short hop from the city centre."},
-    {"id": "queen", "name": "Queen Hotel", "location": "Wembley, London",
-     "distance": "2 km", "rating": 4, "reviews": 80, "price": 220, "photo": "palace",
-     "amenities": ["Lagoon pool", "Spa", "Free Wi-Fi", "Bar"],
-     "description": "Palatial courtyards and a turquoise lagoon pool, with a full-service "
-                    "spa and an elegant cocktail bar."},
-    {"id": "hillside", "name": "Hillside Retreat", "location": "Richmond, London",
-     "distance": "5 km", "rating": 5, "reviews": 124, "price": 260, "photo": "hills",
-     "amenities": ["Garden views", "Restaurant", "Parking", "Pet friendly"],
-     "description": "Rolling green views on the edge of the city — quiet grounds, a "
-                    "farm-to-table restaurant and easy parking."},
-    {"id": "thames-view", "name": "The Thames View", "location": "Southbank, London",
-     "distance": "1 km", "rating": 4, "reviews": 96, "price": 310, "photo": "river",
-     "amenities": ["River views", "Rooftop bar", "Free Wi-Fi", "Concierge"],
-     "description": "Floor-to-ceiling river views on the Southbank, steps from the theatres, "
-                    "with a lively rooftop bar."},
-    {"id": "kensington", "name": "Kensington Suites", "location": "Kensington, London",
-     "distance": "3 km", "rating": 5, "reviews": 210, "price": 340, "photo": "classic",
-     "amenities": ["Suites", "Butler service", "Spa", "Breakfast"],
-     "description": "Classic townhouse suites with butler service, moments from the museums "
-                    "and the park."},
-    {"id": "camden-loft", "name": "Camden Loft", "location": "Camden, London",
-     "distance": "4 km", "rating": 4, "reviews": 64, "price": 150, "photo": "urban",
-     "amenities": ["Loft rooms", "Cafe", "Free Wi-Fi", "Live music"],
-     "description": "Industrial-chic lofts in the heart of Camden, with a buzzing cafe and "
-                    "live music round the corner."},
+VENUES = [
+    {"id": "tasting-room", "name": "The Tasting Room", "cuisine": "New American",
+     "neighborhood": "Hayes Valley", "distance": "1 km", "rating": 4, "reviews": 128,
+     "price_level": "$$$", "photo": "ember", "slots": ["6:30 PM", "7:00 PM", "7:45 PM"],
+     "amenities": ["Tasting menu", "Natural wine", "Bar seats", "Vegetarian"],
+     "description": "A seasonal tasting menu in an intimate room — the chef's counter is "
+                    "the seat to book."},
+    {"id": "nopa", "name": "Nopa", "cuisine": "Californian",
+     "neighborhood": "Alamo Square", "distance": "3 km", "rating": 5, "reviews": 342,
+     "price_level": "$$", "photo": "sage", "slots": ["7:15 PM", "8:00 PM", "9:30 PM"],
+     "amenities": ["Wood-fired", "Late night", "Cocktails", "Groups"],
+     "description": "The neighbourhood classic — wood-fired cooking and a buzzing room that "
+                    "runs late."},
+    {"id": "zuni", "name": "Zuni Café", "cuisine": "Mediterranean",
+     "neighborhood": "Market Street", "distance": "2 km", "rating": 4, "reviews": 210,
+     "price_level": "$$$", "photo": "citrus", "slots": ["6:00 PM", "7:30 PM", "8:15 PM"],
+     "amenities": ["Roast chicken", "Oyster bar", "Patio", "Wine list"],
+     "description": "An institution known for its brick-oven roast chicken for two and a "
+                    "superb oyster bar."},
+    {"id": "state-bird", "name": "State Bird Provisions", "cuisine": "Small plates",
+     "neighborhood": "Fillmore", "distance": "4 km", "rating": 5, "reviews": 512,
+     "price_level": "$$$", "photo": "wine", "slots": ["6:45 PM", "7:30 PM"],
+     "amenities": ["Dim-sum style", "Tasting", "Award-winning", "Bar"],
+     "description": "Inventive dim-sum-style small plates rolled to your table — books out "
+                    "fast, so let the agent watch for openings."},
+    {"id": "kokkari", "name": "Kokkari Estiatorio", "cuisine": "Greek",
+     "neighborhood": "Financial District", "distance": "3 km", "rating": 5, "reviews": 388,
+     "price_level": "$$$", "photo": "slate", "slots": ["6:30 PM", "7:15 PM", "8:45 PM"],
+     "amenities": ["Fireplace", "Meze", "Private room", "Groups"],
+     "description": "Rustic Aegean cooking by a roaring fireplace — the meze and the lamb "
+                    "are the move."},
+    {"id": "rich-table", "name": "Rich Table", "cuisine": "New American",
+     "neighborhood": "Hayes Valley", "distance": "1 km", "rating": 4, "reviews": 176,
+     "price_level": "$$$", "photo": "cream", "slots": ["7:00 PM", "8:30 PM"],
+     "amenities": ["Pasta", "Sardine chips", "Bar seats", "Vegetarian"],
+     "description": "Playful, ingredient-driven plates in a warm room — the porcini "
+                    "doughnuts are non-negotiable."},
 ]
 
 
-@app.get("/api/hotels")
-def list_hotels(q: str = ""):
+@app.get("/api/venues")
+def list_venues(q: str = ""):
     q = q.strip().lower()
-    hotels = [h for h in HOTELS if not q or q in h["name"].lower() or q in h["location"].lower()]
+    venues = [v for v in VENUES
+              if not q or q in v["name"].lower() or q in v["cuisine"].lower()
+              or q in v["neighborhood"].lower()]
     # start_url is blank -> the booking adapter routes to the demo reservation flow.
-    return [{**h, "booking_url": ""} for h in hotels]
+    return [{**v, "booking_url": ""} for v in venues]
 
 
 @app.get("/api/tasks")

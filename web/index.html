@@ -5,24 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#e8eef0">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Stayable">
+  <meta name="apple-mobile-web-app-title" content="Concierge">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="styles.css">
-  <title>Stayable — Book hotels with AI</title>
+  <title>Concierge — Book any reservation with AI</title>
 </head>
 <body>
   <div class="wrap">
-    <!-- ===== EXPLORE ===== -->
-    <div class="view" id="view-explore">
+    <!-- ===== DISCOVER ===== -->
+    <div class="view" id="view-discover">
       <header class="topbar">
         <button class="icon-btn" aria-label="Back">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <h1>Explore</h1>
+        <h1>Discover</h1>
         <div class="top-actions">
-          <button class="icon-btn" aria-label="Favorites" id="goFavs">
+          <button class="icon-btn" id="goSaved" aria-label="Saved">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg>
           </button>
           <button class="icon-btn pin" aria-label="Map">
@@ -31,64 +31,67 @@
         </div>
       </header>
 
-      <div class="search-area">
-        <form class="search" id="searchForm">
-          <input id="q" type="text" value="London" autocomplete="off" placeholder="Where to?">
-          <button class="go" type="submit" aria-label="Search">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <!-- AI concierge ask bar -->
+      <div class="ask-card">
+        <div class="ask-eyebrow">AI concierge</div>
+        <div class="ask-title">Book a table — just ask.</div>
+        <form class="ask-row" id="askForm">
+          <button class="mic" id="mic" type="button" aria-label="Speak">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg>
+          </button>
+          <input id="ask" type="text" autocomplete="off" placeholder="Table for 2 tonight at 7:30">
+          <button class="ask-go" type="submit" aria-label="Ask">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
         </form>
-        <div class="criteria">
-          <div class="c"><div class="label">Choose date</div><div class="val">12 Dec – 22 Dec</div></div>
-          <div class="c"><div class="label">Number of Rooms</div><div class="val">1 Room · 2 Adults</div></div>
-        </div>
+        <div class="ask-hint" id="askHint">Say it or type it — the agent books it for you.</div>
       </div>
 
       <div class="results-head">
         <span class="count" id="count">Loading…</span>
-        <button class="filters">Filters
+        <button class="filters">Tonight
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
         </button>
       </div>
       <div class="list" id="list"></div>
     </div>
 
-    <!-- ===== TRIPS ===== -->
-    <div class="view" id="view-trips" hidden>
-      <header class="topbar"><span></span><h1>Trips</h1><span></span></header>
-      <p class="section-sub">Your upcoming and past stays.</p>
-      <div id="trips"></div>
+    <!-- ===== RESERVATIONS ===== -->
+    <div class="view" id="view-reservations" hidden>
+      <header class="topbar"><span></span><h1>Reservations</h1><span></span></header>
+      <p class="section-sub">Your upcoming and past tables.</p>
+      <div id="reservations"></div>
     </div>
 
     <!-- ===== PROFILE ===== -->
     <div class="view" id="view-profile" hidden>
       <header class="topbar"><span></span><h1>Profile</h1><span></span></header>
       <div class="profile-card">
-        <div class="avatar" id="avatar">Z</div>
-        <div style="font-family:var(--serif);font-size:20px;font-weight:700" id="pname">Guest</div>
+        <div class="avatar">Z</div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:700">Guest</div>
         <div class="p-row"><span>Email</span><b id="pemail">—</b></div>
         <div class="p-row"><span>Booking mode</span><b id="pmode">—</b></div>
-        <div class="p-row"><span>Trips booked</span><b id="ptrips">0</b></div>
+        <div class="p-row"><span>Tables booked</span><b id="ptrips">0</b></div>
       </div>
       <div class="profile-card">
-        <div class="p-row" style="border:none"><span>How booking works</span></div>
-        <p class="desc" style="margin:0">Tap a hotel and choose <b>Book with AI</b> — an AI agent fills the
-          reservation on your behalf and drops the confirmed stay into Trips.</p>
+        <div class="p-row" style="border:none"><span>How it works</span></div>
+        <p class="desc" style="margin:0">Ask in plain words or tap a place and choose <b>Book with AI</b> — an
+          AI agent fills the reservation on your behalf and drops the confirmed table into Reservations.</p>
       </div>
     </div>
   </div>
 
   <!-- ===== BOTTOM NAV ===== -->
   <nav class="tabbar">
-    <button class="tab active" data-view="explore">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Explore</button>
-    <button class="tab" data-view="trips">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg>Trips</button>
+    <button class="tab active" data-view="discover">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Discover</button>
+    <button class="tab" data-view="reservations">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Reservations</button>
     <button class="tab" data-view="profile">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</button>
   </nav>
 
-  <!-- ===== DETAIL / BOOKING SHEET ===== -->
+  <!-- ===== DETAIL / BOOKING / CONFIRM SHEET ===== -->
   <div class="sheet" id="sheet" hidden><div class="sheet-card" id="sheetCard"></div></div>
   <div class="toast" id="toast" hidden></div>
 

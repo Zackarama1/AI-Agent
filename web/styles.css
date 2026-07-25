@@ -86,6 +86,22 @@ body {
 .criteria .label { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
 .criteria .val { color: var(--ink); font-size: 15px; font-weight: 600; }
 
+/* ---------- AI ask hero ---------- */
+.ask-card { margin: 18px 18px 4px; background: var(--card); border-radius: 22px; box-shadow: var(--shadow); padding: 16px 16px 18px; }
+.ask-eyebrow { color: var(--teal-2); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ask-title { font-family: var(--serif); font-size: 21px; margin: 4px 0 12px; color: var(--ink); }
+.ask-row { display: flex; align-items: center; gap: 10px; }
+.ask-row input { flex: 1; font: inherit; font-size: 15px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 13px 16px; outline: none; min-width: 0; }
+.ask-row input:focus { border-color: var(--teal); }
+.ask-row .mic, .ask-row .ask-go { flex: none; width: 46px; height: 46px; border-radius: 50%; border: none; cursor: pointer; display: grid; place-items: center; }
+.ask-row .mic { background: var(--teal-soft); color: var(--teal-2); }
+.ask-row .mic.listening { background: var(--teal); color: #fff; animation: pulse 1.3s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--teal) 22%, transparent); } }
+.ask-row .ask-go { background: var(--teal); color: #fff; box-shadow: 0 8px 18px -8px var(--teal); }
+.ask-row .ask-go:active, .ask-row .mic:active { transform: scale(.94); }
+.ask-hint { color: var(--muted); font-size: 12.5px; margin: 10px 2px 0; text-align: center; min-height: 1em; }
+
 /* ---------- results header ---------- */
 .results-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; }
 .results-head .count { color: var(--ink); font-size: 15px; }
@@ -119,6 +135,12 @@ body {
 .stars { display: inline-flex; gap: 2px; color: var(--star); }
 .stars .off { color: color-mix(in srgb, var(--star) 30%, transparent); }
 .reviews { color: var(--ink-2); font-size: 13px; }
+.price-level { font-family: var(--sans); font-size: 14px; font-weight: 700; color: var(--teal-2); }
+.slots-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.slot-chip { font: inherit; font-size: 13px; font-weight: 700; color: var(--teal-2); background: var(--teal-soft);
+  border: 1px solid color-mix(in srgb, var(--teal) 30%, transparent); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.slot-chip:active { transform: scale(.96); }
+.slot-chip.more { color: var(--muted); background: var(--card); border-color: var(--line); }
 
 /* ---------- bottom nav ---------- */
 .tabbar {

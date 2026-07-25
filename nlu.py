@@ -141,9 +141,14 @@ def _extract_time(p: str) -> str | None:
         if m.group(3) == "pm":
             hh += 12
         return f"{hh:02d}:{int(m.group(2) or 0):02d}"
-    m = re.search(r"\b(\d{1,2}):(\d{2})\b", p)  # 24h
+    m = re.search(r"\b(\d{1,2}):(\d{2})\b", p)  # bare "7:30"
     if m:
-        return f"{int(m.group(1)):02d}:{m.group(2)}"
+        hh = int(m.group(1))
+        # Dining bias: a bare 1–10 o'clock without am/pm means evening, unless
+        # the request is clearly a brunch/lunch/breakfast.
+        if hh <= 10 and not re.search(r"brunch|lunch|breakfast|morning|am\b", p):
+            hh += 12
+        return f"{hh:02d}:{m.group(2)}"
     if "tonight" in p or "this evening" in p:
         return "19:00"
     if "lunch" in p:
