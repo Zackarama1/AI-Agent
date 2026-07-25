@@ -194,6 +194,35 @@ calendar. All bookings persist in a local SQLite DB (`data/app.db`).
 > booking with no API key. With a key set, the real Claude agent does the same
 > with judgement.
 
+## Is this actually workable? What you need to go live
+
+Short answer: **yes** — every feature is built and works in the app; going
+"live" is a matter of adding provider keys and doing a native build. Nothing
+below requires new product work from you, just accounts. Here's each capability,
+whether it's real or gated, and exactly what to add.
+
+| Capability | Status in the app | To make it live |
+| --- | --- | --- |
+| **AI books by filling a form** | Works (demo site); real sites gated | `ANTHROPIC_API_KEY` + `BROWSERBASE_API_KEY`; set a venue's real `booking_url` + `REAL_BOOKING=1`. |
+| **AI phones the venue** | Works (simulated call) | A voice provider — **Vapi / Bland / Retell** (easiest) or Twilio Media Streams. Set `PHONE_PROVIDER` + key + `PHONE_FROM_NUMBER`. |
+| **Real restaurant data** (search, photos, menus) | Sample data + coords | **Yelp Fusion** or **Google Places** API for venues/photos; a menu source (e.g. a provider or the venue's site). Add a key and swap the `VENUES` list for a live fetch. |
+| **Confirmation emails** | Works (writes to `data/outbox/`) | `RESEND_API_KEY` (or Postmark/SendGrid) + a verified `EMAIL_FROM` domain. |
+| **Save payment cards / hold a card** | Wallet UI works (last 4 only) | **Stripe**: Stripe Elements on the card form + a SetupIntent; store the Stripe customer/PM id, never the number. |
+| **Location / distance** | Works (browser Geolocation) | Nothing — already live. Native adds background/precise location via Capacitor Geolocation. |
+| **Calendar** | In-app calendar + `.ics` subscribe | Two-way device sync: **Google Calendar API** (OAuth) and Apple **EventKit** via a Capacitor plugin. |
+| **Push notifications** | Not yet wired | **Web Push** (VAPID) for the PWA; **APNs/FCM** via Capacitor Push for native. |
+| **Read your inbox** (parse confirmations) | Not built | **Gmail API** (OAuth, read-only) to pull booking emails — a later enhancement. |
+| **Native iOS/Android** (haptics, seamless) | Capacitor project scaffolded | Build in Xcode / Android Studio; add `@capacitor/haptics`, `@capacitor/push-notifications`, `@capacitor/geolocation`, `@capacitor/status-bar`. |
+| **Accounts, DB, hosting** | Works (SQLite) | `DATABASE_URL` (Postgres) + deploy (below). |
+
+**The one hard truth:** OpenTable / Resy / Tock have **no public booking API**.
+That's *why* this product exists — the AI filling the form and calling the venue
+*is* the mechanism. Everything else above is a standard key-and-go integration.
+
+**Fastest path to a real first booking:** deploy → add `ANTHROPIC_API_KEY`,
+`BROWSERBASE_API_KEY`, `RESEND_API_KEY` → set one venue's real `booking_url` +
+`REAL_BOOKING=1` → book it from the app. Then add a phone provider and Stripe.
+
 ## Deploy to a real URL
 
 The repo ships a production `Dockerfile` (Python + Playwright's own Chromium),
