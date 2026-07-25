@@ -174,6 +174,48 @@ def health():
     }
 
 
+HOTELS = [
+    {"id": "grand-royal", "name": "Grand Royal Hotel", "location": "Wembley, London",
+     "distance": "2 km", "rating": 4, "reviews": 80, "price": 180, "photo": "pool",
+     "amenities": ["Infinity pool", "Free Wi-Fi", "Breakfast", "Gym"],
+     "description": "A rooftop infinity pool over the skyline, generous suites and a "
+                    "celebrated breakfast — a short hop from the city centre."},
+    {"id": "queen", "name": "Queen Hotel", "location": "Wembley, London",
+     "distance": "2 km", "rating": 4, "reviews": 80, "price": 220, "photo": "palace",
+     "amenities": ["Lagoon pool", "Spa", "Free Wi-Fi", "Bar"],
+     "description": "Palatial courtyards and a turquoise lagoon pool, with a full-service "
+                    "spa and an elegant cocktail bar."},
+    {"id": "hillside", "name": "Hillside Retreat", "location": "Richmond, London",
+     "distance": "5 km", "rating": 5, "reviews": 124, "price": 260, "photo": "hills",
+     "amenities": ["Garden views", "Restaurant", "Parking", "Pet friendly"],
+     "description": "Rolling green views on the edge of the city — quiet grounds, a "
+                    "farm-to-table restaurant and easy parking."},
+    {"id": "thames-view", "name": "The Thames View", "location": "Southbank, London",
+     "distance": "1 km", "rating": 4, "reviews": 96, "price": 310, "photo": "river",
+     "amenities": ["River views", "Rooftop bar", "Free Wi-Fi", "Concierge"],
+     "description": "Floor-to-ceiling river views on the Southbank, steps from the theatres, "
+                    "with a lively rooftop bar."},
+    {"id": "kensington", "name": "Kensington Suites", "location": "Kensington, London",
+     "distance": "3 km", "rating": 5, "reviews": 210, "price": 340, "photo": "classic",
+     "amenities": ["Suites", "Butler service", "Spa", "Breakfast"],
+     "description": "Classic townhouse suites with butler service, moments from the museums "
+                    "and the park."},
+    {"id": "camden-loft", "name": "Camden Loft", "location": "Camden, London",
+     "distance": "4 km", "rating": 4, "reviews": 64, "price": 150, "photo": "urban",
+     "amenities": ["Loft rooms", "Cafe", "Free Wi-Fi", "Live music"],
+     "description": "Industrial-chic lofts in the heart of Camden, with a buzzing cafe and "
+                    "live music round the corner."},
+]
+
+
+@app.get("/api/hotels")
+def list_hotels(q: str = ""):
+    q = q.strip().lower()
+    hotels = [h for h in HOTELS if not q or q in h["name"].lower() or q in h["location"].lower()]
+    # start_url is blank -> the booking adapter routes to the demo reservation flow.
+    return [{**h, "booking_url": ""} for h in hotels]
+
+
 @app.get("/api/tasks")
 def list_tasks():
     tasks = [{

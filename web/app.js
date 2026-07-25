@@ -1,332 +1,212 @@
 "use strict";
 
-/* ---------------- tiny helpers ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 
-// Resolve an API path against the configured base (same-origin by default,
-// the deployed URL in the native build). Keeps relative paths working when
-// FastAPI serves this page.
 const API_BASE = ((window.APP_CONFIG && window.APP_CONFIG.apiBase) || "").replace(/\/$/, "");
-const url = (p) => (API_BASE ? `${API_BASE}/${p}` : p);
-const api = (p, opts) => fetch(url(p), opts).then((r) => (r.ok ? r.json() : Promise.reject(r)));
-const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const api = (p, o) => fetch(API_BASE ? `${API_BASE}/${p}` : p, o).then((r) => (r.ok ? r.json() : Promise.reject(r)));
+const urlOf = (p) => (API_BASE ? `${API_BASE}/${p}` : p);
 
-const state = { hasKey: false, reservations: [], intent: null };
+const PHOTO = {
+  pool:   "linear-gradient(135deg,#8fd3d9,#57a9c2 45%,#d3a86e)",
+  palace: "linear-gradient(140deg,#a8e0e6,#49b0c1 58%,#dbcaa6)",
+  hills:  "linear-gradient(160deg,#c1e4a6,#6cab77 52%,#8fb8d6)",
+  river:  "linear-gradient(140deg,#9fc4e8,#5b7fac 58%,#26314f)",
+  classic:"linear-gradient(150deg,#e6d9c4,#b6996f 58%,#7a6a58)",
+  urban:  "linear-gradient(150deg,#c6cfd8,#828fa0 52%,#48525f)",
+};
+const TOOL_ICON = { navigate: "🧭", read_page: "👀", click: "👆", fill: "⌨️", select_option: "⌨️", screenshot: "📸", submit_payment: "💳" };
 
-const TOOL_ICON = { navigate: "🧭", read_page: "👀", click: "👆", fill: "⌨️", screenshot: "📸", submit_payment: "💳" };
-const STATUS_LABEL = { confirmed: "Confirmed", pending: "Booking…", draft: "Draft", failed: "Failed", needs_human: "Needs you", cancelled: "Cancelled" };
+const state = { hotels: [], reservations: [], favs: new Set(JSON.parse(localStorage.getItem("favs") || "[]")), hasKey: false, mode: "" };
 
-/* ---------------- boot ---------------- */
 async function boot() {
-  try { const h = await api("api/health"); state.hasKey = !!h.has_key; } catch (_) {}
-  paintMode();
-
+  try { const h = await api("api/health"); state.hasKey = h.has_key; state.mode = h.has_key ? "Live AI agent" : "Dry run (demo)"; } catch (_) {}
   $$(".tab").forEach((t) => t.addEventListener("click", () => switchView(t.dataset.view)));
-  $("#modePill").addEventListener("click", () =>
-    toast(state.hasKey ? "A live API key is set — bookings use the real AI agent."
-                       : "No API key on the server — running in scripted dry-run mode."));
-
-  $("#promptForm").addEventListener("submit", (e) => { e.preventDefault(); submitPrompt($("#prompt").value); });
-  $$("#chips button").forEach((b) => b.addEventListener("click", () => { $("#prompt").value = b.dataset.fill; submitPrompt(b.dataset.fill); }));
-  $("#mic").addEventListener("click", toggleVoice);
-  $("#sheetClose").addEventListener("click", () => $("#sheet").hidden = true);
-
-  const sub = $("#subscribe");
-  if (sub) sub.href = url("api/reservations.ics");
-
+  $("#searchForm").addEventListener("submit", (e) => { e.preventDefault(); renderHotels(); });
+  $("#goFavs").addEventListener("click", () => switchView("trips"));
+  const sub = $("#subscribe"); if (sub) sub.href = urlOf("api/reservations.ics");
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  loadReservations();
+  await loadHotels();
+  await loadTrips();
+  paintProfile();
 }
 
-function paintMode() {
-  const pill = $("#modePill");
-  pill.textContent = state.hasKey ? "● Live agent" : "● Dry run";
-  pill.className = "pill " + (state.hasKey ? "real" : "dry");
-}
-
-/* ---------------- view routing ---------------- */
 function switchView(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
-  if (name === "calendar" || name === "activity") loadReservations();
+  if (name === "trips") loadTrips();
+  if (name === "profile") paintProfile();
+  window.scrollTo(0, 0);
 }
 
-/* ---------------- voice (Web Speech API) ---------------- */
-let recog = null, listening = false;
-function toggleVoice() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast("Voice isn't supported in this browser — type instead."); $("#prompt").focus(); return; }
-  if (listening) { recog && recog.stop(); return; }
-  recog = new SR();
-  recog.lang = "en-US"; recog.interimResults = true; recog.maxAlternatives = 1;
-  listening = true;
-  $("#mic").classList.add("listening");
-  $("#micHint").textContent = "Listening…";
-  recog.onresult = (e) => {
-    const text = [...e.results].map((r) => r[0].transcript).join("");
-    $("#prompt").value = text;
-    if (e.results[e.results.length - 1].isFinal) { stopVoice(); submitPrompt(text); }
-  };
-  recog.onerror = () => { stopVoice(); toast("Didn't catch that — try again or type."); };
-  recog.onend = () => stopVoice();
-  recog.start();
+/* ---------- hotels ---------- */
+async function loadHotels() {
+  try { state.hotels = await api("api/hotels"); } catch (_) { state.hotels = []; }
+  renderHotels();
 }
-function stopVoice() {
-  listening = false;
-  $("#mic").classList.remove("listening");
-  $("#micHint").textContent = "Tap to speak";
-}
-
-/* ---------------- prompt -> intent ---------------- */
-async function submitPrompt(text) {
-  text = (text || "").trim();
-  if (!text) return;
-  const wrap = $("#intentWrap");
-  wrap.innerHTML = `<div class="card"><div class="card-title">Understanding your request<span class="spinner" style="border-top-color:var(--violet)"></span></div></div>`;
-  wrap.scrollIntoView({ behavior: "smooth", block: "center" });
-  try {
-    const intent = await api("api/parse", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: text }),
-    });
-    state.intent = intent;
-    renderIntent(intent);
-  } catch (_) {
-    wrap.innerHTML = `<div class="card"><div class="banner bad">Couldn't reach the concierge server.</div></div>`;
-  }
-}
-
-function fieldRow(label, id, value, type = "text", wide = false) {
-  const safe = String(value ?? "").replace(/"/g, "&quot;");
-  return `<div class="f ${wide ? "wide" : ""}"><label>${label}</label><input id="if-${id}" type="${type}" value="${safe}"></div>`;
-}
-
-function renderIntent(it) {
-  const pct = Math.round((it.confidence || 0) * 100);
-  const assumptions = (it.assumptions || []).length
-    ? `<div class="assume">💡 ${it.assumptions.join(" ")}</div>` : "";
-  const engine = it.used_model ? "AI understood your request" : "Parsed your request";
-  $("#intentWrap").innerHTML = `
-    <div class="card">
-      <div class="card-title">${engine}<span class="conf">${pct}% sure</span></div>
-      <div class="fields">
-        ${fieldRow("Venue", "venue", it.venue, "text", true)}
-        ${fieldRow("Party", "party_size", it.party_size, "number")}
-        ${fieldRow("Date", "date", it.date, "date")}
-        ${fieldRow("Time", "time", it.time, "time")}
-        ${fieldRow("Under name", "name", it.name)}
-        ${fieldRow("Phone", "phone", it.phone, "tel", true)}
-        ${fieldRow("Notes", "notes", it.notes, "text", true)}
-        ${fieldRow("Booking form URL (optional)", "start_url", it.start_url, "url", true)}
+function renderHotels() {
+  const q = $("#q").value.trim().toLowerCase();
+  const shown = state.hotels.filter((h) =>
+    !q || h.name.toLowerCase().includes(q) || h.location.toLowerCase().includes(q));
+  $("#count").textContent = `${shown.length} hotel${shown.length === 1 ? "" : "s"} found`;
+  const list = $("#list"); list.innerHTML = "";
+  if (!shown.length) { list.appendChild(el("div", "empty", "No hotels match that search.")); return; }
+  shown.forEach((h, i) => {
+    const card = el("div", "hotel");
+    card.style.animationDelay = `${i * 45}ms`;
+    card.innerHTML = `
+      <div class="photo" style="background-image:${PHOTO[h.photo] || PHOTO.pool}">
+        <button class="fav ${state.favs.has(h.id) ? "on" : ""}" aria-label="Save">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="${state.favs.has(h.id) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-8.5C.5 9 2 5.5 5.3 5.5c2 0 3.2 1.2 3.7 2.2.5-1 1.7-2.2 3.7-2.2 3.3 0 4.8 3.5 2.8 7C19 16.5 12 21 12 21z"/></svg>
+        </button>
       </div>
-      ${assumptions}
-      <div class="actions">
-        <button class="btn" id="callBtn">📞 Call venue</button>
-        <button class="btn primary" id="bookBtn">✨ Book with AI</button>
-      </div>
-    </div>`;
-  $("#bookBtn").addEventListener("click", () => confirmAndBook());
-  $("#callBtn").addEventListener("click", () => confirmAndCall());
-}
-
-function collectIntent() {
-  const g = (id) => { const e = $("#if-" + id); return e ? e.value.trim() : ""; };
-  return {
-    venue: g("venue"), party_size: parseInt(g("party_size") || "2", 10),
-    date: g("date"), time: g("time"), name: g("name"), phone: g("phone"),
-    notes: g("notes"), start_url: g("start_url"),
-    method: "agent", source_prompt: (state.intent && state.intent.source_prompt) || "",
-  };
-}
-
-async function createReservation() {
-  const body = collectIntent();
-  return api("api/reservations", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      <div class="body">
+        <div class="row1">
+          <h3 class="name">${h.name}</h3>
+          <div class="price">$${h.price}<small>/per night</small></div>
+        </div>
+        <div class="loc"><span class="pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6c0 4 6 10 6 10s6-6 6-10a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg></span>${h.location} <span class="dot">·</span> ${h.distance} to city</div>
+        <div class="rating">${stars(h.rating)}<span class="reviews">${h.reviews} Reviews</span></div>
+      </div>`;
+    card.querySelector(".fav").addEventListener("click", (e) => { e.stopPropagation(); toggleFav(h.id); });
+    card.addEventListener("click", () => openHotel(h));
+    list.appendChild(card);
   });
 }
-
-/* ---------------- book with AI agent (live sheet) ---------------- */
-async function confirmAndBook() {
-  const btn = $("#bookBtn");
-  btn.disabled = true; btn.innerHTML = 'Starting<span class="spinner"></span>';
-  let res, run;
-  try {
-    res = await createReservation();
-    run = await api(`api/reservations/${res.id}/book`, { method: "POST" });
-  } catch (_) {
-    btn.disabled = false; btn.textContent = "✨ Book with AI";
-    toast("Could not start the booking.");
-    return;
-  }
-  openSheet(`Booking ${res.venue || "your table"}`, `${run.mode === "real" ? "Live AI agent" : "Dry-run agent"} · party of ${res.party_size}`);
-  streamRun(run.run_id, () => { btn.disabled = false; btn.textContent = "✨ Book with AI"; loadReservations(); });
+function stars(n) {
+  let s = '<span class="stars">';
+  for (let i = 1; i <= 5; i++) s += `<svg class="${i <= n ? "" : "off"}" viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 17.8 5.9 20.9l1.5-6.7L2.3 9.6l6.8-.7z"/></svg>`;
+  return s + "</span>";
+}
+function toggleFav(id) {
+  if (state.favs.has(id)) state.favs.delete(id); else state.favs.add(id);
+  localStorage.setItem("favs", JSON.stringify([...state.favs]));
+  renderHotels();
 }
 
-async function confirmAndCall() {
-  let res;
-  try { res = await createReservation(); }
-  catch (_) { toast("Could not save the reservation."); return; }
-  try {
-    const r = await api(`api/reservations/${res.id}/call`, { method: "POST" });
-    openSheet("Phone agent", "Calling on your behalf");
-    $("#sheetLog").innerHTML = "";
-    $("#sheetBanner").hidden = false;
-    $("#sheetBanner").className = "banner warn";
-    $("#sheetBanner").innerHTML = `Not connected yet<small>${r.message}</small>`;
-    $("#sheetClose").hidden = false;
-    loadReservations();
-  } catch (_) { toast("Phone agent unavailable."); }
-}
-
-/* ---------------- SSE streaming into the sheet ---------------- */
-function openSheet(title, sub) {
-  $("#sheetTitle").textContent = title;
-  $("#sheetSub").textContent = sub || "";
-  $("#sheetLog").innerHTML = "";
-  $("#sheetBanner").hidden = true;
-  $("#sheetClose").hidden = true;
+/* ---------- hotel detail + AI booking ---------- */
+function openHotel(h) {
+  const card = $("#sheetCard");
+  card.innerHTML = `
+    <div class="sheet-photo" style="background-image:${PHOTO[h.photo] || PHOTO.pool}">
+      <button class="close" id="closeSheet" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="row1" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+        <h2>${h.name}</h2>
+        <div class="sheet-price">$${h.price}<small>/night</small></div>
+      </div>
+      <div class="loc" style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;margin-top:4px">
+        ${h.location} · ${h.distance} to city</div>
+      <div class="rating" style="margin-top:8px;display:flex;gap:8px;align-items:center">${stars(h.rating)}<span class="reviews">${h.reviews} Reviews</span></div>
+      <div class="amenities">${(h.amenities || []).map((a) => `<span class="chip">${a}</span>`).join("")}</div>
+      <p class="desc">${h.description || ""}</p>
+      <div id="bookArea">
+        <button class="cta" id="bookBtn">✨ Book with AI · 12–22 Dec</button>
+        <button class="cta ghost" id="closeBtn">Close</button>
+      </div>
+    </div>`;
   $("#sheet").hidden = false;
+  $("#closeSheet").addEventListener("click", closeSheet);
+  $("#closeBtn").addEventListener("click", closeSheet);
+  $("#bookBtn").addEventListener("click", () => bookHotel(h));
 }
+function closeSheet() { $("#sheet").hidden = true; }
 
-function addEvent(icon, tool, detail, cls) {
-  const li = el("li", "event" + (cls ? " " + cls : ""));
-  li.appendChild(el("div", "ic", icon));
-  const body = el("div", "body");
-  body.appendChild(el("div", "tool", tool));
-  if (detail) { const d = el("div", "detail"); d.textContent = detail; body.appendChild(d); }
-  li.appendChild(body);
-  $("#sheetLog").appendChild(li);
-  li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+async function bookHotel(h) {
+  const btn = $("#bookBtn");
+  btn.disabled = true; btn.innerHTML = 'Starting<span class="spin"></span>';
+  const body = {
+    venue: h.name, party_size: 2, date: checkinISO(), time: "15:00",
+    notes: "12 Dec – 22 Dec · 1 room, 2 adults", start_url: h.booking_url || "",
+    source_prompt: `Book ${h.name} in ${h.location}, 12–22 Dec, 1 room 2 adults`,
+  };
+  let res, run;
+  try { res = await api("api/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
+  catch (_) { btn.disabled = false; btn.textContent = "✨ Book with AI · 12–22 Dec"; toast("Couldn't start booking."); return; }
+  try { run = await api(`api/reservations/${res.id}/book`, { method: "POST" }); }
+  catch (_) { btn.disabled = false; toast("Couldn't reach the agent."); return; }
+
+  const area = $("#bookArea");
+  area.innerHTML = `
+    <div class="book-head"><h3>Booking ${h.name}</h3></div>
+    <div class="banner" id="bk-banner" hidden></div>
+    <ol class="timeline" id="bk-log"></ol>
+    <button class="cta ghost" id="bk-done" hidden>Done</button>`;
+  $("#bk-done").addEventListener("click", () => { closeSheet(); switchView("trips"); });
+  streamRun(run.run_id, () => { $("#bk-done").hidden = false; loadTrips(); });
 }
 
 function streamRun(runId, onDone) {
-  const src = new EventSource(url(`api/runs/${runId}/stream`));
+  const src = new EventSource(urlOf(`api/runs/${runId}/stream`));
   src.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    switch (ev.type) {
-      case "status": addEvent("⚙️", "Session", ev.message); break;
-      case "assistant": addEvent("💭", "Agent", ev.text, "assistant"); break;
-      case "action": {
-        const input = ev.input && Object.keys(ev.input).length ? JSON.stringify(ev.input) : "";
-        addEvent(TOOL_ICON[ev.tool] || "🔧", `${ev.tool} · step ${ev.step}`, [input, ev.result].filter(Boolean).join("\n"));
-        break;
-      }
-      case "result": showBanner(ev); break;
-      case "error": addEvent("⛔", "Error", ev.message, "error"); showBanner({ outcome: "failed", note: ev.message }); break;
-      case "end": src.close(); $("#sheetClose").hidden = false; onDone && onDone(); break;
-    }
+    const log = $("#bk-log"); if (!log) { src.close(); return; }
+    if (ev.type === "status") addEvent("⚙️", "Session", ev.message);
+    else if (ev.type === "assistant") addEvent("💭", "Agent", ev.text, "assistant");
+    else if (ev.type === "action") {
+      const inp = ev.input && Object.keys(ev.input).length ? JSON.stringify(ev.input) : "";
+      addEvent(TOOL_ICON[ev.tool] || "🔧", `${ev.tool} · step ${ev.step}`, [inp, ev.result].filter(Boolean).join("\n"));
+    } else if (ev.type === "result") showBanner(ev);
+    else if (ev.type === "error") { addEvent("⛔", "Error", ev.message); showBanner({ outcome: "failed", note: ev.message }); }
+    else if (ev.type === "end") { src.close(); onDone && onDone(); }
   };
-  src.onerror = () => { src.close(); $("#sheetClose").hidden = false; onDone && onDone(); };
+  src.onerror = () => { src.close(); onDone && onDone(); };
 }
-
+function addEvent(ic, tl, dt, cls) {
+  const log = $("#bk-log"); if (!log) return;
+  const li = el("li", "event" + (cls ? " " + cls : ""));
+  li.appendChild(el("div", "ic", ic));
+  const b = el("div"); b.appendChild(el("div", "tl", tl));
+  if (dt) { const d = el("div", "dt"); d.textContent = dt; b.appendChild(d); }
+  li.appendChild(b); log.appendChild(li);
+  li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
 function showBanner(ev) {
-  const map = { success: ["ok", "✅ Booked"], confirmed: ["ok", "✅ Booked"], needs_human: ["warn", "🙋 Needs your input"], failed: ["bad", "❌ Couldn't complete"] };
-  const [cls, title] = map[ev.outcome] || ["", ev.outcome];
-  const b = $("#sheetBanner");
-  b.className = "banner " + cls;
-  b.innerHTML = title + (ev.note ? `<small>${ev.note}</small>` : "");
+  const b = $("#bk-banner"); if (!b) return;
+  const ok = ev.outcome === "success" || ev.outcome === "confirmed";
+  b.className = "banner " + (ok ? "ok" : "");
+  b.innerHTML = (ok ? "✅ Booked" : ev.outcome === "needs_human" ? "🙋 Needs you" : "❌ Couldn’t complete")
+    + (ev.note ? `<small>${ev.note}</small>` : "");
   b.hidden = false;
-  if (cls === "ok") toast("Added to your calendar ✨");
+  if (ok) toast("Added to your Trips ✨");
 }
 
-/* ---------------- reservations / calendar / activity ---------------- */
-async function loadReservations() {
-  try { state.reservations = await api("api/reservations"); }
-  catch (_) { state.reservations = []; }
-  renderMonthStrip();
-  renderAgenda();
-  renderActivity();
-}
-
-function fmtTime(t) {
-  if (!t) return "--";
-  const [h, m] = t.split(":").map(Number);
-  const ap = h >= 12 ? "PM" : "AM"; const h12 = ((h + 11) % 12) + 1;
-  return { top: `${h12}:${String(m).padStart(2, "0")}`, ap };
-}
-function dateLabel(d) {
-  if (!d) return "Someday";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const dt = new Date(d + "T00:00:00");
-  const diff = Math.round((dt - today) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  return dt.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-}
-
-function renderMonthStrip() {
-  const strip = $("#monthStrip"); strip.innerHTML = "";
-  const days = {}; state.reservations.forEach((r) => { if (r.date && r.status !== "cancelled") days[r.date] = true; });
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 14; i++) {
-    const dt = new Date(today.getTime() + i * 86400000);
-    const iso = dt.toISOString().slice(0, 10);
-    const col = el("div", "daycol" + (days[iso] ? " has" : "") + (i === 0 ? " today" : ""));
-    col.innerHTML = `<div class="dow">${dt.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3)}</div>
-                     <div class="dnum">${dt.getDate()}</div>${days[iso] ? '<div class="dot"></div>' : ""}`;
-    strip.appendChild(col);
-  }
-}
-
-function resCard(r) {
-  const t = fmtTime(r.time);
-  const card = el("div", "res");
-  card.innerHTML = `
-    <div class="time"><b>${t.top || "--"}</b><span>${t.ap || ""}</span></div>
-    <div><div class="name">${r.venue || "Reservation"}</div>
-      <div class="meta">Party of ${r.party_size}${r.name ? " · " + r.name : ""}${r.notes ? " · " + r.notes : ""}</div></div>
-    <div class="status ${r.status}">${STATUS_LABEL[r.status] || r.status}</div>`;
-  card.addEventListener("click", () => resDetail(r));
-  return card;
-}
-
-function renderAgenda() {
-  const wrap = $("#agenda"); wrap.innerHTML = "";
-  const active = state.reservations.filter((r) => r.status !== "cancelled");
-  if (!active.length) { wrap.appendChild(emptyState("No reservations yet", "Ask the concierge to book one.")); return; }
-  const groups = {};
-  active.forEach((r) => { (groups[r.date || ""] ||= []).push(r); });
-  Object.keys(groups).sort().forEach((d) => {
-    wrap.appendChild(el("div", "date-group", dateLabel(d)));
-    groups[d].forEach((r) => wrap.appendChild(resCard(r)));
+/* ---------- trips ---------- */
+async function loadTrips() {
+  try { state.reservations = await api("api/reservations"); } catch (_) { state.reservations = []; }
+  const wrap = $("#trips"); wrap.innerHTML = "";
+  const active = state.reservations.filter((r) => r.status !== "cancelled").reverse();
+  if (!active.length) { wrap.appendChild(el("div", "empty", "No trips yet — book a hotel from Explore.")); return; }
+  active.forEach((r) => {
+    const h = state.hotels.find((x) => x.name === r.venue);
+    const photo = PHOTO[(h && h.photo)] || PHOTO.classic;
+    const label = { confirmed: "Confirmed", pending: "Booking…", needs_human: "Needs you", failed: "Failed" }[r.status] || r.status;
+    const cls = r.status === "confirmed" ? "confirmed" : r.status === "pending" ? "pending" : "cancelled";
+    const t = el("div", "trip");
+    t.innerHTML = `<div class="thumb" style="background-image:${photo}"></div>
+      <div><div class="t-name">${r.venue}</div><div class="t-meta">${r.notes || "12–22 Dec"}</div></div>
+      <div class="status ${cls}">${label}</div>`;
+    wrap.appendChild(t);
   });
+  paintProfile();
 }
 
-function renderActivity() {
-  const wrap = $("#activity"); wrap.innerHTML = "";
-  const all = [...state.reservations].sort((a, b) => (b.created || 0) - (a.created || 0));
-  if (!all.length) { wrap.appendChild(emptyState("Nothing here yet", "Your booking history will appear here.")); return; }
-  all.forEach((r) => wrap.appendChild(resCard(r)));
+function paintProfile() {
+  $("#pemail").textContent = "guest@stayable.app";
+  $("#pmode").textContent = state.mode || "—";
+  $("#ptrips").textContent = String(state.reservations.filter((r) => r.status === "confirmed").length);
 }
 
-function emptyState(title, sub) {
-  return el("div", "empty",
-    `<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
-     <div style="font-weight:700;font-size:16px;color:var(--text)">${title}</div><div class="muted">${sub}</div>`);
+function checkinISO() {
+  const y = new Date().getFullYear();
+  return `${y}-12-12`;
 }
 
-function resDetail(r) {
-  openSheet(r.venue || "Reservation", `${dateLabel(r.date)} · ${(fmtTime(r.time).top || "")} ${(fmtTime(r.time).ap || "")}`);
-  const b = $("#sheetBanner"); b.hidden = false;
-  const cls = { confirmed: "ok", pending: "warn", failed: "bad", needs_human: "warn" }[r.status] || "";
-  b.className = "banner " + cls;
-  b.innerHTML = `${STATUS_LABEL[r.status] || r.status}<small>Party of ${r.party_size}${r.name ? " · " + r.name : ""}${r.source_prompt ? '<br>“' + r.source_prompt + '”' : ""}</small>`;
-  const log = $("#sheetLog"); log.innerHTML = "";
-  if (r.status !== "cancelled") {
-    const row = el("li"); const btn = el("button", "btn", "Cancel reservation");
-    btn.style.width = "100%";
-    btn.addEventListener("click", async () => { await api(`api/reservations/${r.id}/cancel`, { method: "POST" }); $("#sheet").hidden = true; loadReservations(); toast("Reservation cancelled."); });
-    row.appendChild(btn); log.appendChild(row);
-  }
-  $("#sheetClose").hidden = false;
-}
-
-/* ---------------- toast ---------------- */
-let toastTimer;
-function toast(msg) {
-  const t = $("#toast"); t.textContent = msg; t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3200);
-}
+let toastT;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3000); }
 
 boot();
