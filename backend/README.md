@@ -24,9 +24,16 @@ Interactive docs at http://localhost:8000/docs.
 
 ## Endpoints
 
+Everything below `/api/auth/*` and the market-data reads (`quote`, `news`,
+`history`, `search`) is public; every other route needs an
+`Authorization: Bearer <token>` from login and is scoped to that user.
+
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET  | `/api/health` | Status + which integrations are live |
+| POST | `/api/auth/register` | Create account `{email, password}` → token |
+| POST | `/api/auth/login` | Log in `{email, password}` → token |
+| GET  | `/api/auth/me` | Current user (requires token) |
 | GET  | `/api/quote/{symbol}` | Real-time quote |
 | GET  | `/api/news/{symbol}` | Recent company news |
 | GET  | `/api/holdings` | Raw holdings list |
@@ -50,6 +57,8 @@ Interactive docs at http://localhost:8000/docs.
 - **FINNHUB_API_KEY** — real-time US quotes, company news, earnings. Free tier at
   https://finnhub.io.
 - **ANTHROPIC_API_KEY** — powers the AI brief. https://console.anthropic.com.
+- **JWT_SECRET** — signs auth tokens. Defaults to a dev value; **set a strong
+  random value in production** (passwords are PBKDF2-hashed; tokens are HS256).
 
 ## Notes / next steps
 

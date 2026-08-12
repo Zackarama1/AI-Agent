@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Where the SQLite portfolio lives (relative to backend/).
     db_path: str = "stocksense.db"
 
+    # Auth. Override jwt_secret in production (env: JWT_SECRET).
+    jwt_secret: str = "dev-insecure-change-me"
+    jwt_expire_days: int = 30
+
     @property
     def has_finnhub(self) -> bool:
         return bool(self.finnhub_api_key)

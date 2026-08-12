@@ -9,6 +9,10 @@ export const theme = {
     accent: "#4C8DFF",
     up: "#2ECC71",
     down: "#FF5A5F",
+    // Advanced-mode gradient hero (blue → indigo, per design reference).
+    gradientStart: "#2D6BFF",
+    gradientEnd: "#6C4CFF",
+    tile: "#1B2130",
   },
   radius: 16,
   spacing: (n: number) => n * 8,

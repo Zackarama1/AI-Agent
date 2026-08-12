@@ -17,6 +17,19 @@ English.
 | Generic headline feed | AI-summarized news per holding |
 | Price only | Quotes + fundamentals + news, one tap away |
 | No analysis | **Claude daily brief: "what happened & why"** |
+| One fixed UI | **Simple** (clean) and **Advanced** (fintech dashboard) modes |
+
+## Two UI modes
+
+The app ships two layouts you can toggle in-app (persisted per device):
+
+- **Simple** — a clean, glanceable portfolio: total, day/all-time P/L, AI brief,
+  holdings list.
+- **Advanced** — a data-dense dashboard styled after a modern fintech app:
+  greeting, gradient balance hero, quick actions, a performance sparkline, and
+  an assets breakdown.
+
+Both sit behind email/password sign-in, with each user's data kept separate.
 
 ## Architecture
 
@@ -75,8 +88,9 @@ See `backend/README.md` and `mobile/README.md` for details.
 - [x] **Phase 2 — Portfolio:** holdings, cost basis, live P/L, allocation.
 - [x] **Phase 3 — AI layer:** Claude daily brief + per-holding news.
 - [~] **Phase 4 — Polish:** price charts ✓, watchlist ✓, symbol search ✓,
-      bottom-tab navigation ✓, push-notification price alerts ✓. Still to do:
-      earnings calendar, multi-user auth.
+      bottom-tab navigation ✓, push-notification price alerts ✓, multi-user
+      auth ✓ (email/password, JWT, per-user data), Simple/Advanced UI modes ✓.
+      Still to do: earnings calendar, managed DB for production.
 - [~] **Phase 5 — Ship:** app icon + splash ✓, `eas.json` + `app.json` build
       config ✓, backend `Dockerfile` ✓, step-by-step [`DEPLOY.md`](DEPLOY.md) ✓.
       Remaining: run the EAS build, host the backend, submit to TestFlight;

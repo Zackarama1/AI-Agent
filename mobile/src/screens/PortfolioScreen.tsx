@@ -12,9 +12,12 @@ import {
 import { api, PortfolioSummary } from "../api/client";
 import { AIBrief } from "../components/AIBrief";
 import { HoldingRow } from "../components/HoldingRow";
+import { ModeSwitch } from "../components/ModeSwitch";
+import { useApp } from "../state/AppState";
 import { gainColor, money, pct, theme } from "../theme";
 
 export function PortfolioScreen({ navigation }: any) {
+  const { logout } = useApp();
   const [data, setData] = useState<PortfolioSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,12 @@ export function PortfolioScreen({ navigation }: any) {
         }
         ListHeaderComponent={
           <View>
+            <View style={styles.topBar}>
+              <ModeSwitch />
+              <TouchableOpacity onPress={logout}>
+                <Text style={styles.logout}>Log out</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.h1}>Portfolio</Text>
             {data && (
               <View style={styles.hero}>
@@ -92,6 +101,13 @@ export function PortfolioScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  logout: { color: theme.colors.textDim, fontSize: 12 },
   h1: { color: theme.colors.text, fontSize: 28, fontWeight: "800", marginBottom: 12 },
   hero: {
     backgroundColor: theme.colors.card,

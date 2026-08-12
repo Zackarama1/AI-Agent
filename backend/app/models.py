@@ -1,6 +1,32 @@
 """Pydantic request/response shapes shared across the API."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+_EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class UserIn(BaseModel):
+    email: str = Field(..., max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _valid_email(cls, v: str) -> str:
+        import re
+
+        if not re.match(_EMAIL_RE, v.strip()):
+            raise ValueError("Invalid email address")
+        return v.strip().lower()
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
 
 
 class Quote(BaseModel):

@@ -71,17 +71,54 @@ export type Alert = {
   active: boolean;
 };
 
+export type User = { id: number; email: string };
+export type AuthResponse = { token: string; user: User };
+
+// Bearer token, set after login and on app start from secure storage.
+let authToken: string | null = null;
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
     ...opts,
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* body wasn't JSON */
+    }
+    throw new ApiError(res.status, detail);
+  }
   if (res.status === 204) return undefined as T;
   return res.json();
 }
 
 export const api = {
+  register: (email: string, password: string) =>
+    req<AuthResponse>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  login: (email: string, password: string) =>
+    req<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  me: () => req<User>("/api/auth/me"),
   getPortfolio: () => req<PortfolioSummary>("/api/portfolio"),
   getBrief: () => req<Brief>("/api/portfolio/brief"),
   getNews: (symbol: string) => req<NewsItem[]>(`/api/news/${symbol}`),

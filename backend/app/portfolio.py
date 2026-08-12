@@ -29,37 +29,51 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS holdings (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL DEFAULT 0,
                 symbol     TEXT NOT NULL,
                 shares     REAL NOT NULL,
                 cost_basis REAL NOT NULL
             )
             """
         )
+        ensure_column(c, "holdings", "user_id", "INTEGER NOT NULL DEFAULT 0")
 
 
-def add_holding(h: HoldingIn) -> Holding:
+def ensure_column(c, table: str, column: str, decl: str) -> None:
+    """Add a column to an existing table if a prior schema lacked it."""
+    cols = [r["name"] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
+def add_holding(user_id: int, h: HoldingIn) -> Holding:
     with _conn() as c:
         cur = c.execute(
-            "INSERT INTO holdings (symbol, shares, cost_basis) VALUES (?, ?, ?)",
-            (h.symbol.upper(), h.shares, h.cost_basis),
+            "INSERT INTO holdings (user_id, symbol, shares, cost_basis) VALUES (?, ?, ?, ?)",
+            (user_id, h.symbol.upper(), h.shares, h.cost_basis),
         )
         return Holding(id=cur.lastrowid, **h.model_dump())
 
 
-def list_holdings() -> list[Holding]:
+def list_holdings(user_id: int) -> list[Holding]:
     with _conn() as c:
-        rows = c.execute("SELECT * FROM holdings ORDER BY symbol").fetchall()
+        rows = c.execute(
+            "SELECT id, symbol, shares, cost_basis FROM holdings WHERE user_id = ? ORDER BY symbol",
+            (user_id,),
+        ).fetchall()
     return [Holding(**dict(r)) for r in rows]
 
 
-def delete_holding(holding_id: int) -> bool:
+def delete_holding(user_id: int, holding_id: int) -> bool:
     with _conn() as c:
-        cur = c.execute("DELETE FROM holdings WHERE id = ?", (holding_id,))
+        cur = c.execute(
+            "DELETE FROM holdings WHERE id = ? AND user_id = ?", (holding_id, user_id)
+        )
         return cur.rowcount > 0
 
 
-async def get_summary() -> PortfolioSummary:
-    holdings = list_holdings()
+async def get_summary(user_id: int) -> PortfolioSummary:
+    holdings = list_holdings(user_id)
     if not holdings:
         return PortfolioSummary(
             holdings=[], total_value=0, total_cost=0, total_gain=0,

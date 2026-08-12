@@ -2,13 +2,15 @@ import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
-import { Text } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 
-import { PortfolioScreen } from "./src/screens/PortfolioScreen";
+import { PortfolioTab } from "./src/screens/PortfolioTab";
 import { StockDetailScreen } from "./src/screens/StockDetailScreen";
 import { AddHoldingScreen } from "./src/screens/AddHoldingScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { SearchScreen } from "./src/screens/SearchScreen";
+import { AuthScreen } from "./src/screens/AuthScreen";
+import { AppProvider, useApp } from "./src/state/AppState";
 import { usePushRegistration } from "./src/usePushRegistration";
 import { theme } from "./src/theme";
 
@@ -47,7 +49,7 @@ function Tabs() {
     >
       <Tab.Screen
         name="PortfolioTab"
-        component={PortfolioScreen}
+        component={PortfolioTab}
         options={{ title: "Portfolio", tabBarIcon: icon("📊") }}
       />
       <Tab.Screen
@@ -64,23 +66,43 @@ function Tabs() {
   );
 }
 
-export default function App() {
+function Root() {
+  const { ready, user } = useApp();
   usePushRegistration();
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  if (!user) return <AuthScreen />;
+
   return (
-    <NavigationContainer theme={navTheme}>
-      <StatusBar style="light" />
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.bg },
-          headerTintColor: theme.colors.text,
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: theme.colors.bg },
-        }}
-      >
-        <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-        <Stack.Screen name="StockDetail" component={StockDetailScreen} options={{ title: "" }} />
-        <Stack.Screen name="AddHolding" component={AddHoldingScreen} options={{ title: "Add Holding" }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerTintColor: theme.colors.text,
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: theme.colors.bg },
+      }}
+    >
+      <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+      <Stack.Screen name="StockDetail" component={StockDetailScreen} options={{ title: "" }} />
+      <Stack.Screen name="AddHolding" component={AddHoldingScreen} options={{ title: "Add Holding" }} />
+    </Stack.Navigator>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <NavigationContainer theme={navTheme}>
+        <StatusBar style="light" />
+        <Root />
+      </NavigationContainer>
+    </AppProvider>
   );
 }
