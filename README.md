@@ -1,89 +1,87 @@
-# Booking Agent PoC — Reliability Test Harness
+# StockSense 📈
 
-This is Step 1 of the plan: **validate that an AI agent can reliably complete
-real-world tasks (reservations, form sign-ups) before building the full
-product around it.**
+An AI-first portfolio tracker — think **Apple Stocks, but it actually knows what
+you own and explains it to you.**
 
-It does NOT build the product yet. It's a small, disposable test harness that:
-1. Points a Claude-driven browser agent at a real site
-2. Gives it a plain-language task ("book a table for 2 at 7pm")
-3. Lets it act via a small set of browser tools (navigate, click, fill, read page)
-4. Logs whether it succeeded, failed, or needed human help
-5. Repeats across multiple sites/tasks so you get a real success-rate number
+Apple Stocks is a watchlist: a ticker, a price, a chart. StockSense tracks real
+**holdings** (cost basis, live P/L, allocation) and layers on the thing Apple
+structurally won't ship — a **Claude-written daily brief** that reads the day's
+news for each of your positions and tells you *what happened and why* in plain
+English.
 
-That success-rate number is the thing that tells you whether to keep building.
+## Why it's better than Apple Stocks
 
-## Safety / ground rules baked into this code
+| Apple Stocks | StockSense |
+|---|---|
+| Watchlist only | Real portfolio: holdings, cost basis, live P/L, allocation |
+| Generic headline feed | AI-summarized news per holding |
+| Price only | Quotes + fundamentals + news, one tap away |
+| No analysis | **Claude daily brief: "what happened & why"** |
 
-- **No real payments.** The `submit_payment` tool is stubbed to always log-only —
-  it never actually submits card details. Don't remove that stub until you've
-  built the real vault/Stripe flow deliberately.
-- **Use test accounts, not your real accounts**, when trying real sites.
-- **Respect robots.txt / ToS.** This harness does polite, human-paced actions
-  (no parallel hammering, no CAPTCHA bypass, no queue circumvention). It is
-  built for the "stay within the rules" version of the product — see the task
-  config for site-by-site notes on what's actually allowed.
+## Architecture
 
-## Setup
+```
+mobile/   Expo (React Native + TypeScript) app  →  iOS + Android, App Store via EAS
+   │  (never holds API keys)
+   ▼
+backend/  FastAPI (Python)
+   ├── Finnhub      real-time quotes + company news
+   ├── Claude       the AI daily brief
+   └── SQLite       portfolio storage + live P/L math
+```
+
+The backend exists so **API keys never ship inside the app**, quotes can be
+cached/streamed, and Claude is called server-side.
+
+## Quick start
+
+**1. Backend** (runs with zero API keys — serves mock data so you can demo instantly):
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+cd backend
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-playwright install chromium
-
-cp .env.example .env
-# then edit .env and add your ANTHROPIC_API_KEY
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Run a single task (for debugging, watch it work)
+**2. App:**
 
 ```bash
-python agent.py --task tasks/example_form_signup.yaml --headed
+cd mobile
+npm install
+npx expo start          # scan the QR with Expo Go on your phone
 ```
 
-`--headed` opens a visible browser window so you can watch the agent work.
-Drop it for headless runs.
+On a physical phone, point the app at your computer's LAN IP:
+`EXPO_PUBLIC_API_URL=http://<your-ip>:8000 npx expo start`.
 
-## Run the full reliability test (Step 1's actual output)
+See `backend/README.md` and `mobile/README.md` for details.
 
-```bash
-python run_reliability_test.py --tasks tasks/ --repeats 5
-```
+## APIs used
 
-This runs every task file in `tasks/` `--repeats` times each, and writes
-`results.csv` with one row per attempt: task, attempt #, outcome
-(success/fail/needs_human), steps taken, and a short note. That CSV is your
-answer to "does this actually work reliably" — if you're not seeing >90%
-success on the happy path, that's the signal to fix the agent loop before
-building anything else.
+- **[Finnhub](https://finnhub.io)** — real-time US quotes, company news, earnings.
+  Free tier to prototype; scale to [Polygon.io](https://polygon.io) for full
+  real-time depth.
+- **Claude (Anthropic API)** — the AI daily brief and news summaries.
+- **Planned: [SnapTrade](https://snaptrade.com) / [Plaid Investments](https://plaid.com)**
+  — link a real brokerage so holdings sync automatically.
 
-## Handing this off to Claude Code to extend
+> ⚠️ Real-time exchange data carries licensing terms. Vendor display-tier plans
+> generally cover a consumer app, but check before redistributing quotes.
 
-This harness is intentionally minimal — a few hundred lines, one browser tool
-set, one agent loop. It's meant to be a starting point Claude Code can build
-on directly. Good next prompts to give Claude Code from here:
+## Roadmap
 
-- "Add a new tool for reading dropdown/select options on the page and add a
-  test task for booking on OpenTable specifically."
-- "Add retry logic: if a step fails, let the agent see the error and try a
-  different approach before giving up."
-- "Turn `run_reliability_test.py`'s output into a simple HTML report."
-- "Add a `propose_then_confirm` mode where the agent stops and asks before
-  the final submit step, and log how often a human would have corrected it."
-- "Replace the stubbed payment tool with real Stripe test-mode tokenization."
+- [x] **Phase 1 — Foundation:** FastAPI backend + Expo app shell, live quotes.
+- [x] **Phase 2 — Portfolio:** holdings, cost basis, live P/L, allocation.
+- [x] **Phase 3 — AI layer:** Claude daily brief + per-holding news.
+- [ ] **Phase 4 — Alerts & polish:** push notifications, charts, watchlists,
+      earnings calendar, multi-user auth.
+- [ ] **Phase 5 — Ship:** EAS Build → TestFlight → App Store; SnapTrade brokerage
+      sync.
 
-## File structure
+## Repo history
 
-```
-booking-agent-poc/
-├── agent.py                 # The Claude-driven agent loop
-├── browser_tools.py         # Playwright-backed tools the agent can call
-├── run_reliability_test.py  # Batch runner across tasks/repeats -> results.csv
-├── tasks/
-│   ├── example_form_signup.yaml
-│   └── example_reservation.yaml
-├── requirements.txt
-├── .env.example
-└── README.md
-```
+This repository began as a browser-automation "booking agent" proof-of-concept
+(`agent.py`, `browser_tools.py`, `run_reliability_test.py`, `tasks/`). Those
+files remain for reference; active development is StockSense in `backend/` and
+`mobile/`.

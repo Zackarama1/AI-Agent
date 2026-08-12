@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "StockSense",
+    "slug": "stocksense",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "stocksense",
+    "splash": {
+      "backgroundColor": "#0B0E14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.stocksense.app"
+    },
+    "android": {
+      "package": "com.stocksense.app"
+    }
+  }
+}
