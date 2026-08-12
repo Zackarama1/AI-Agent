@@ -71,6 +71,17 @@ export type Alert = {
   active: boolean;
 };
 
+export type EarningsEvent = {
+  symbol: string;
+  date: string;
+  hour: string;
+  eps_estimate: number | null;
+  eps_actual: number | null;
+  quarter: number | null;
+  year: number | null;
+  is_mock: boolean;
+};
+
 export type User = { id: number; email: string };
 export type AuthResponse = { token: string; user: User };
 
@@ -152,4 +163,5 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ token }),
     }),
+  getEarnings: () => req<EarningsEvent[]>("/api/calendar/earnings"),
 };

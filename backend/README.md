@@ -43,6 +43,7 @@ Everything below `/api/auth/*` and the market-data reads (`quote`, `news`,
 | GET  | `/api/portfolio/brief` | Claude's daily "what happened & why" |
 | GET  | `/api/history/{symbol}?days=` | Daily OHLC candles for charts |
 | GET  | `/api/search?q=` | Ticker / company symbol search |
+| GET  | `/api/calendar/earnings` | Upcoming earnings for your holdings + watchlist |
 | GET  | `/api/watchlist` | Watched symbols with live quotes |
 | POST | `/api/watchlist` | Add a symbol `{symbol}` |
 | DELETE | `/api/watchlist/{symbol}` | Remove a watched symbol |

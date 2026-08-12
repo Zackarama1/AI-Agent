@@ -27,11 +27,21 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000 npx expo start
 
 (Find your IP with `ipconfig getifaddr en0` on macOS or `hostname -I` on Linux.)
 
+## Auth & modes
+
+- Sign in with email/password on first launch; the token is stored in
+  `expo-secure-store` and each user's data is kept separate.
+- Toggle **Simple** / **Advanced** layouts in-app (persisted per device).
+
 ## Screens
 
-- **Portfolio** — total value, today's move, all-time gain, the ✨ AI Daily Brief,
-  and a tappable list of holdings. Pull to refresh.
-- **Stock Detail** — live quote, OHLC stats, and latest news.
+- **Portfolio** — Simple: total value, today's move, all-time gain, the ✨ AI
+  Daily Brief, tappable holdings. Advanced: greeting, gradient balance hero,
+  quick actions, performance sparkline, and an assets breakdown with allocation.
+- **Watchlist** — followed symbols with live quotes.
+- **Earnings** — upcoming earnings dates for your holdings + watchlist.
+- **Search** — debounced ticker/company lookup.
+- **Stock Detail** — live quote, price chart (1W/1M/3M), price alerts, news.
 - **Add Holding** — ticker, shares, average cost.
 
 ## App assets

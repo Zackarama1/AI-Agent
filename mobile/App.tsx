@@ -9,6 +9,7 @@ import { StockDetailScreen } from "./src/screens/StockDetailScreen";
 import { AddHoldingScreen } from "./src/screens/AddHoldingScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { SearchScreen } from "./src/screens/SearchScreen";
+import { CalendarScreen } from "./src/screens/CalendarScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { AppProvider, useApp } from "./src/state/AppState";
 import { usePushRegistration } from "./src/usePushRegistration";
@@ -56,6 +57,11 @@ function Tabs() {
         name="WatchlistTab"
         component={WatchlistScreen}
         options={{ title: "Watchlist", tabBarIcon: icon("★") }}
+      />
+      <Tab.Screen
+        name="CalendarTab"
+        component={CalendarScreen}
+        options={{ title: "Earnings", tabBarIcon: icon("📅") }}
       />
       <Tab.Screen
         name="SearchTab"

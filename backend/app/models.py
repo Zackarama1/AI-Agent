@@ -104,6 +104,17 @@ class SearchResult(BaseModel):
     type: str = ""
 
 
+class EarningsEvent(BaseModel):
+    symbol: str
+    date: str  # YYYY-MM-DD
+    hour: str = ""  # "bmo" (before open), "amc" (after close), or ""
+    eps_estimate: float | None = None
+    eps_actual: float | None = None
+    quarter: int | None = None
+    year: int | None = None
+    is_mock: bool = False
+
+
 class WatchIn(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=10)
 

@@ -21,6 +21,7 @@ from .models import (
     AlertIn,
     AuthResponse,
     Brief,
+    EarningsEvent,
     History,
     Holding,
     HoldingIn,
@@ -108,6 +109,19 @@ async def history(symbol: str, days: int = 30) -> History:
 @app.get("/api/search", response_model=list[SearchResult])
 async def search(q: str) -> list[SearchResult]:
     return await market.search_symbols(q)
+
+
+# ---- Earnings calendar (auth: scoped to the user's symbols) ----------------
+
+@app.get("/api/calendar/earnings", response_model=list[EarningsEvent])
+async def earnings_calendar(user: UserOut = CurrentUser) -> list[EarningsEvent]:
+    symbols = {h.symbol for h in portfolio.list_holdings(user.id)}
+    symbols |= {w.symbol for w in await watchlist.get_all(user.id)}
+    events: list[EarningsEvent] = []
+    for sym in symbols:
+        events.extend(await market.get_earnings(sym))
+    events.sort(key=lambda e: e.date)
+    return events
 
 
 # ---- Watchlist (auth) -----------------------------------------------------

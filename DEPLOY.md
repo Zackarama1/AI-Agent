@@ -47,9 +47,22 @@ A `backend/Dockerfile` is included, so any container host works. Example with
 5. Sanity-check: open `https://<your-url>/api/health` — it should return
    `{"status":"ok", ...}`.
 
-> Note: SQLite lives on the container's local disk, which is ephemeral on most
-> hosts (holdings reset on redeploy). Fine for a demo/TestFlight; before public
-> launch, move to a managed Postgres and add multi-user auth (Phase 4).
+### Making accounts durable
+
+SQLite lives at `DB_PATH` (default `stocksense.db`) on the container's local
+disk, which is **ephemeral** on most hosts — users and holdings reset on every
+redeploy. Two ways to fix that:
+
+- **Quick (good for TestFlight):** attach a **persistent volume** and point
+  `DB_PATH` at it. Render Disks, Railway volumes, and Fly.io volumes all mount a
+  durable path — e.g. set `DB_PATH=/data/stocksense.db` and mount the volume at
+  `/data`. SQLite then survives redeploys.
+- **Production scale (many users):** move to **managed Postgres**. The storage
+  layer is isolated in `portfolio.py` / `watchlist.py` / `alerts.py` / `auth.py`,
+  so this is a contained change when you're ready.
+
+Auth is already in place (email/password + JWT), so the app is multi-tenant
+safe once storage is durable.
 
 Put that URL into `mobile/eas.json` — replace both
 `https://YOUR-DEPLOYED-BACKEND.example.com` entries with your real URL.

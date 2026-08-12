@@ -11,7 +11,7 @@ import time
 import httpx
 
 from .config import settings
-from .models import Candle, History, NewsItem, Quote, SearchResult
+from .models import Candle, EarningsEvent, History, NewsItem, Quote, SearchResult
 
 # Small universe used for offline symbol search + as a mock fallback.
 _UNIVERSE = [
@@ -198,6 +198,61 @@ async def get_history(symbol: str, days: int = 30) -> History:
         return History(symbol=symbol.upper(), candles=candles, is_mock=False)
     except httpx.HTTPError:
         return _mock_history(symbol, days)
+
+
+def _mock_earnings(symbol: str, days: int) -> list[EarningsEvent]:
+    """A single plausible upcoming earnings date, seeded by the ticker."""
+    s = _seed(symbol)
+    offset = int(s * days)  # 0..days ahead
+    date = time.strftime("%Y-%m-%d", time.gmtime(time.time() + offset * 86400))
+    return [
+        EarningsEvent(
+            symbol=symbol.upper(),
+            date=date,
+            hour="amc" if s > 0.5 else "bmo",
+            eps_estimate=round(0.5 + s * 3, 2),
+            quarter=((time.gmtime().tm_mon - 1) // 3) + 1,
+            year=time.gmtime().tm_year,
+            is_mock=True,
+        )
+    ]
+
+
+async def get_earnings(symbol: str, days: int = 90) -> list[EarningsEvent]:
+    """Upcoming earnings for one symbol (today → +days)."""
+    if not settings.has_finnhub:
+        return _mock_earnings(symbol, days)
+
+    frm = time.strftime("%Y-%m-%d", time.gmtime())
+    to = time.strftime("%Y-%m-%d", time.gmtime(time.time() + days * 86400))
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"{FINNHUB_BASE}/calendar/earnings",
+                params={"symbol": symbol.upper(), "from": frm, "to": to,
+                        "token": settings.finnhub_api_key},
+            )
+            r.raise_for_status()
+            rows = r.json().get("earningsCalendar", [])
+    except httpx.HTTPError:
+        return _mock_earnings(symbol, days)
+
+    if not rows:
+        return _mock_earnings(symbol, days)
+
+    return [
+        EarningsEvent(
+            symbol=symbol.upper(),
+            date=row.get("date", ""),
+            hour=row.get("hour", "") or "",
+            eps_estimate=row.get("epsEstimate"),
+            eps_actual=row.get("epsActual"),
+            quarter=row.get("quarter"),
+            year=row.get("year"),
+            is_mock=False,
+        )
+        for row in rows
+    ]
 
 
 async def search_symbols(query: str) -> list[SearchResult]:

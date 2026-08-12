@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { api, Candle, PortfolioSummary } from "../api/client";
+import { api, Candle, PortfolioSummary, WatchItem } from "../api/client";
 import { AIBrief } from "../components/AIBrief";
 import { LineChart } from "../components/LineChart";
 import { ModeSwitch } from "../components/ModeSwitch";
@@ -25,6 +25,7 @@ const CENTS = (v: number) => v.toFixed(2).split(".")[1];
 export function AdvancedPortfolioScreen({ navigation }: any) {
   const { user, logout } = useApp();
   const [data, setData] = useState<PortfolioSummary | null>(null);
+  const [watch, setWatch] = useState<WatchItem[]>([]);
   const [spark, setSpark] = useState<Candle[]>([]);
   const [filter, setFilter] = useState<Filter>("All");
   const [refreshing, setRefreshing] = useState(false);
@@ -39,12 +40,15 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
       })
       .catch(() => {})
       .finally(() => setRefreshing(false));
+    api.getWatchlist().then(setWatch).catch(() => {});
   }, []);
 
   useFocusEffect(useCallback(() => load(), [load]));
 
   const name = user?.email?.split("@")[0] ?? "there";
   const holdings = data?.holdings ?? [];
+  const totalValue = data?.total_value ?? 0;
+  const showWatch = filter === "Watchlist";
 
   return (
     <ScrollView
@@ -138,35 +142,66 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
 
       {/* Assets */}
       <View style={styles.assetsHead}>
-        <Text style={styles.assetsTitle}>Assets</Text>
-        <Text style={styles.viewAll}>{holdings.length} holdings</Text>
+        <Text style={styles.assetsTitle}>{showWatch ? "Watchlist" : "Assets"}</Text>
+        <Text style={styles.viewAll}>
+          {showWatch ? `${watch.length} tracked` : `${holdings.length} holdings`}
+        </Text>
       </View>
-      {holdings.length === 0 && (
+
+      {showWatch
+        ? watch.map((w) => (
+            <TouchableOpacity
+              key={w.id}
+              style={styles.asset}
+              onPress={() => navigation.navigate("StockDetail", { symbol: w.symbol })}
+            >
+              <View style={styles.assetLeft}>
+                <View style={styles.coin}>
+                  <Text style={styles.coinText}>{w.symbol[0]}</Text>
+                </View>
+                <Text style={styles.assetSym}>{w.symbol}</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.assetVal}>{money(w.price)}</Text>
+                <Text style={[styles.assetChange, { color: gainColor(w.percent_change) }]}>
+                  {pct(w.percent_change)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        : holdings.map((h) => (
+            <TouchableOpacity
+              key={h.id}
+              style={styles.asset}
+              onPress={() => navigation.navigate("StockDetail", { symbol: h.symbol })}
+            >
+              <View style={styles.assetLeft}>
+                <View style={styles.coin}>
+                  <Text style={styles.coinText}>{h.symbol[0]}</Text>
+                </View>
+                <View>
+                  <Text style={styles.assetSym}>{h.symbol}</Text>
+                  <Text style={styles.assetShares}>
+                    {h.shares} sh ·{" "}
+                    {totalValue ? ((h.market_value / totalValue) * 100).toFixed(1) : "0"}%
+                  </Text>
+                </View>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.assetVal}>{money(h.market_value)}</Text>
+                <Text style={[styles.assetChange, { color: gainColor(h.day_change_percent) }]}>
+                  {pct(h.day_change_percent)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+      {showWatch && watch.length === 0 && (
+        <Text style={styles.empty}>Watchlist is empty. Add symbols from Search.</Text>
+      )}
+      {!showWatch && holdings.length === 0 && (
         <Text style={styles.empty}>No holdings yet. Tap Add to start.</Text>
       )}
-      {holdings.map((h) => (
-        <TouchableOpacity
-          key={h.id}
-          style={styles.asset}
-          onPress={() => navigation.navigate("StockDetail", { symbol: h.symbol })}
-        >
-          <View style={styles.assetLeft}>
-            <View style={styles.coin}>
-              <Text style={styles.coinText}>{h.symbol[0]}</Text>
-            </View>
-            <View>
-              <Text style={styles.assetSym}>{h.symbol}</Text>
-              <Text style={styles.assetShares}>{h.shares} shares</Text>
-            </View>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.assetVal}>{money(h.market_value)}</Text>
-            <Text style={[styles.assetChange, { color: gainColor(h.day_change_percent) }]}>
-              {pct(h.day_change_percent)}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      ))}
     </ScrollView>
   );
 }
