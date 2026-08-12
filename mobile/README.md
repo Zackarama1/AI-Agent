@@ -34,13 +34,23 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000 npx expo start
 - **Stock Detail** — live quote, OHLC stats, and latest news.
 - **Add Holding** — ticker, shares, average cost.
 
-## Shipping to the App Store (later)
+## App assets
+
+Icon / splash / adaptive-icon PNGs live in `assets/` and are generated from
+brand colors by `scripts/make_assets.py` (run `python scripts/make_assets.py`
+from `mobile/` after tweaking colors). `app.json` and `eas.json` are already
+wired for EAS builds.
+
+## Shipping to the App Store
+
+Full step-by-step — backend hosting, EAS setup, TestFlight, App Store — is in
+[`../DEPLOY.md`](../DEPLOY.md). Short version:
 
 ```bash
 npm install -g eas-cli
-eas build --platform ios      # builds in the cloud, no Mac needed
-eas submit --platform ios     # uploads to App Store Connect / TestFlight
+eas login && eas init                          # one-time
+eas build  --platform ios --profile production # cloud build, no Mac needed
+eas submit --platform ios --profile production # → App Store Connect / TestFlight
 ```
 
-You'll need an Apple Developer account ($99/yr). See the roadmap in the root
-`README.md`.
+You'll need an Apple Developer account ($99/yr).

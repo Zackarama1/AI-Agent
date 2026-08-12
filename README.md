@@ -77,8 +77,10 @@ See `backend/README.md` and `mobile/README.md` for details.
 - [~] **Phase 4 — Polish:** price charts ✓, watchlist ✓, symbol search ✓,
       bottom-tab navigation ✓. Still to do: push-notification alerts, earnings
       calendar, multi-user auth.
-- [ ] **Phase 5 — Ship:** EAS Build → TestFlight → App Store; SnapTrade brokerage
-      sync.
+- [~] **Phase 5 — Ship:** app icon + splash ✓, `eas.json` + `app.json` build
+      config ✓, backend `Dockerfile` ✓, step-by-step [`DEPLOY.md`](DEPLOY.md) ✓.
+      Remaining: run the EAS build, host the backend, submit to TestFlight;
+      SnapTrade brokerage sync.
 
 ## Repo history
 
