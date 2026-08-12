@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import { api, Candle, NewsItem, Quote } from "../api/client";
+import { AlertsSection } from "../components/AlertsSection";
 import { LineChart } from "../components/LineChart";
 import { gainColor, money, pct, theme } from "../theme";
 
@@ -106,6 +107,8 @@ export function StockDetailScreen({ route }: any) {
           </View>
         </View>
       )}
+
+      <AlertsSection symbol={symbol} />
 
       <Text style={styles.section}>Latest News</Text>
       {news.map((n, i) => (

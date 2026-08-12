@@ -88,3 +88,18 @@ class WatchItem(BaseModel):
     price: float
     change: float
     percent_change: float
+
+
+class AlertIn(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=10)
+    direction: str = Field(..., pattern="^(above|below)$")
+    target: float = Field(..., gt=0)
+
+
+class Alert(AlertIn):
+    id: int
+    active: bool
+
+
+class PushToken(BaseModel):
+    token: str = Field(..., min_length=1)

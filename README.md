@@ -75,8 +75,8 @@ See `backend/README.md` and `mobile/README.md` for details.
 - [x] **Phase 2 — Portfolio:** holdings, cost basis, live P/L, allocation.
 - [x] **Phase 3 — AI layer:** Claude daily brief + per-holding news.
 - [~] **Phase 4 — Polish:** price charts ✓, watchlist ✓, symbol search ✓,
-      bottom-tab navigation ✓. Still to do: push-notification alerts, earnings
-      calendar, multi-user auth.
+      bottom-tab navigation ✓, push-notification price alerts ✓. Still to do:
+      earnings calendar, multi-user auth.
 - [~] **Phase 5 — Ship:** app icon + splash ✓, `eas.json` + `app.json` build
       config ✓, backend `Dockerfile` ✓, step-by-step [`DEPLOY.md`](DEPLOY.md) ✓.
       Remaining: run the EAS build, host the backend, submit to TestFlight;

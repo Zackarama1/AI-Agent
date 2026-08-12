@@ -9,6 +9,7 @@ import { StockDetailScreen } from "./src/screens/StockDetailScreen";
 import { AddHoldingScreen } from "./src/screens/AddHoldingScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { SearchScreen } from "./src/screens/SearchScreen";
+import { usePushRegistration } from "./src/usePushRegistration";
 import { theme } from "./src/theme";
 
 const Stack = createNativeStackNavigator();
@@ -64,6 +65,7 @@ function Tabs() {
 }
 
 export default function App() {
+  usePushRegistration();
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style="light" />

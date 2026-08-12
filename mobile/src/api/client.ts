@@ -63,6 +63,14 @@ export type WatchItem = {
   percent_change: number;
 };
 
+export type Alert = {
+  id: number;
+  symbol: string;
+  direction: "above" | "below";
+  target: number;
+  active: boolean;
+};
+
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -97,4 +105,14 @@ export const api = {
     }),
   removeWatch: (symbol: string) =>
     req<void>(`/api/watchlist/${symbol}`, { method: "DELETE" }),
+  getAlerts: () => req<Alert[]>("/api/alerts"),
+  addAlert: (a: { symbol: string; direction: "above" | "below"; target: number }) =>
+    req<Alert>("/api/alerts", { method: "POST", body: JSON.stringify(a) }),
+  deleteAlert: (id: number) =>
+    req<void>(`/api/alerts/${id}`, { method: "DELETE" }),
+  registerPushToken: (token: string) =>
+    req<{ ok: boolean }>("/api/push/register", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 };

@@ -39,6 +39,11 @@ Interactive docs at http://localhost:8000/docs.
 | GET  | `/api/watchlist` | Watched symbols with live quotes |
 | POST | `/api/watchlist` | Add a symbol `{symbol}` |
 | DELETE | `/api/watchlist/{symbol}` | Remove a watched symbol |
+| GET  | `/api/alerts` | List price alerts |
+| POST | `/api/alerts` | Create alert `{symbol, direction, target}` |
+| DELETE | `/api/alerts/{id}` | Delete an alert |
+| POST | `/api/alerts/check` | Evaluate alerts now (also runs on a 60s loop) |
+| POST | `/api/push/register` | Register an Expo push token `{token}` |
 
 ## Keys
 

@@ -4,20 +4,24 @@ Run:  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Docs: http://localhost:8000/docs
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import ai, market, portfolio, watchlist
+from . import ai, alerts, market, portfolio, watchlist
 from .config import settings
 from .models import (
+    Alert,
+    AlertIn,
     Brief,
     History,
     Holding,
     HoldingIn,
     NewsItem,
     PortfolioSummary,
+    PushToken,
     Quote,
     SearchResult,
     WatchIn,
@@ -29,7 +33,10 @@ from .models import (
 async def lifespan(app: FastAPI):
     portfolio.init_db()
     watchlist.init_db()
+    alerts.init_db()
+    task = asyncio.create_task(alerts.alert_loop())
     yield
+    task.cancel()
 
 
 app = FastAPI(title="StockSense API", version="0.1.0", lifespan=lifespan)
@@ -87,6 +94,34 @@ async def add_watch(item: WatchIn) -> dict:
 async def remove_watch(symbol: str) -> None:
     if not watchlist.remove(symbol):
         raise HTTPException(status_code=404, detail="Symbol not on watchlist")
+
+
+@app.get("/api/alerts", response_model=list[Alert])
+async def get_alerts() -> list[Alert]:
+    return alerts.list_alerts()
+
+
+@app.post("/api/alerts", response_model=Alert, status_code=201)
+async def create_alert(a: AlertIn) -> Alert:
+    return alerts.add_alert(a)
+
+
+@app.delete("/api/alerts/{alert_id}", status_code=204)
+async def remove_alert(alert_id: int) -> None:
+    if not alerts.delete_alert(alert_id):
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+
+@app.post("/api/alerts/check", response_model=list[Alert])
+async def check_alerts_now() -> list[Alert]:
+    """Manually evaluate alerts now (the background loop also does this)."""
+    return await alerts.check_alerts()
+
+
+@app.post("/api/push/register", status_code=201)
+async def register_push(t: PushToken) -> dict:
+    alerts.register_token(t.token)
+    return {"ok": True}
 
 
 @app.get("/api/holdings", response_model=list[Holding])
