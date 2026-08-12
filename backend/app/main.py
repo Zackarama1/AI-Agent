@@ -9,21 +9,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import ai, market, portfolio
+from . import ai, market, portfolio, watchlist
 from .config import settings
 from .models import (
     Brief,
+    History,
     Holding,
     HoldingIn,
     NewsItem,
     PortfolioSummary,
     Quote,
+    SearchResult,
+    WatchIn,
+    WatchItem,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     portfolio.init_db()
+    watchlist.init_db()
     yield
 
 
@@ -55,6 +60,33 @@ async def quote(symbol: str) -> Quote:
 @app.get("/api/news/{symbol}", response_model=list[NewsItem])
 async def news(symbol: str) -> list[NewsItem]:
     return await market.get_company_news(symbol)
+
+
+@app.get("/api/history/{symbol}", response_model=History)
+async def history(symbol: str, days: int = 30) -> History:
+    return await market.get_history(symbol, days=days)
+
+
+@app.get("/api/search", response_model=list[SearchResult])
+async def search(q: str) -> list[SearchResult]:
+    return await market.search_symbols(q)
+
+
+@app.get("/api/watchlist", response_model=list[WatchItem])
+async def get_watchlist() -> list[WatchItem]:
+    return await watchlist.get_all()
+
+
+@app.post("/api/watchlist", status_code=201)
+async def add_watch(item: WatchIn) -> dict:
+    watchlist.add(item)
+    return {"ok": True}
+
+
+@app.delete("/api/watchlist/{symbol}", status_code=204)
+async def remove_watch(symbol: str) -> None:
+    if not watchlist.remove(symbol):
+        raise HTTPException(status_code=404, detail="Symbol not on watchlist")
 
 
 @app.get("/api/holdings", response_model=list[Holding])

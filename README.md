@@ -74,8 +74,9 @@ See `backend/README.md` and `mobile/README.md` for details.
 - [x] **Phase 1 — Foundation:** FastAPI backend + Expo app shell, live quotes.
 - [x] **Phase 2 — Portfolio:** holdings, cost basis, live P/L, allocation.
 - [x] **Phase 3 — AI layer:** Claude daily brief + per-holding news.
-- [ ] **Phase 4 — Alerts & polish:** push notifications, charts, watchlists,
-      earnings calendar, multi-user auth.
+- [~] **Phase 4 — Polish:** price charts ✓, watchlist ✓, symbol search ✓,
+      bottom-tab navigation ✓. Still to do: push-notification alerts, earnings
+      calendar, multi-user auth.
 - [ ] **Phase 5 — Ship:** EAS Build → TestFlight → App Store; SnapTrade brokerage
       sync.
 

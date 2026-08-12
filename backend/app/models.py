@@ -56,3 +56,35 @@ class NewsItem(BaseModel):
 class Brief(BaseModel):
     text: str
     is_mock: bool = False
+
+
+class Candle(BaseModel):
+    t: int  # epoch seconds
+    o: float
+    h: float
+    l: float
+    c: float
+
+
+class History(BaseModel):
+    symbol: str
+    candles: list[Candle]
+    is_mock: bool = False
+
+
+class SearchResult(BaseModel):
+    symbol: str
+    description: str
+    type: str = ""
+
+
+class WatchIn(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=10)
+
+
+class WatchItem(BaseModel):
+    id: int
+    symbol: str
+    price: float
+    change: float
+    percent_change: float

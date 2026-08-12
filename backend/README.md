@@ -34,6 +34,11 @@ Interactive docs at http://localhost:8000/docs.
 | DELETE | `/api/holdings/{id}` | Remove a holding |
 | GET  | `/api/portfolio` | Holdings enriched with live quotes + totals |
 | GET  | `/api/portfolio/brief` | Claude's daily "what happened & why" |
+| GET  | `/api/history/{symbol}?days=` | Daily OHLC candles for charts |
+| GET  | `/api/search?q=` | Ticker / company symbol search |
+| GET  | `/api/watchlist` | Watched symbols with live quotes |
+| POST | `/api/watchlist` | Add a symbol `{symbol}` |
+| DELETE | `/api/watchlist/{symbol}` | Remove a watched symbol |
 
 ## Keys
 

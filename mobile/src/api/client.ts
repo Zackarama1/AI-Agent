@@ -52,6 +52,17 @@ export type NewsItem = {
 
 export type Brief = { text: string; is_mock: boolean };
 
+export type Candle = { t: number; o: number; h: number; l: number; c: number };
+export type History = { symbol: string; candles: Candle[]; is_mock: boolean };
+export type SearchResult = { symbol: string; description: string; type: string };
+export type WatchItem = {
+  id: number;
+  symbol: string;
+  price: number;
+  change: number;
+  percent_change: number;
+};
+
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -67,6 +78,8 @@ export const api = {
   getBrief: () => req<Brief>("/api/portfolio/brief"),
   getNews: (symbol: string) => req<NewsItem[]>(`/api/news/${symbol}`),
   getQuote: (symbol: string) => req<Quote>(`/api/quote/${symbol}`),
+  getHistory: (symbol: string, days = 30) =>
+    req<History>(`/api/history/${symbol}?days=${days}`),
   addHolding: (h: { symbol: string; shares: number; cost_basis: number }) =>
     req<HoldingWithQuote>("/api/holdings", {
       method: "POST",
@@ -74,4 +87,14 @@ export const api = {
     }),
   deleteHolding: (id: number) =>
     req<void>(`/api/holdings/${id}`, { method: "DELETE" }),
+  search: (q: string) =>
+    req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  getWatchlist: () => req<WatchItem[]>("/api/watchlist"),
+  addWatch: (symbol: string) =>
+    req<{ ok: boolean }>("/api/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ symbol }),
+    }),
+  removeWatch: (symbol: string) =>
+    req<void>(`/api/watchlist/${symbol}`, { method: "DELETE" }),
 };

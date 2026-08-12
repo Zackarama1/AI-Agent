@@ -11,7 +11,16 @@ import time
 import httpx
 
 from .config import settings
-from .models import NewsItem, Quote
+from .models import Candle, History, NewsItem, Quote, SearchResult
+
+# Small universe used for offline symbol search + as a mock fallback.
+_UNIVERSE = [
+    ("AAPL", "Apple Inc"), ("MSFT", "Microsoft Corp"), ("NVDA", "NVIDIA Corp"),
+    ("AMZN", "Amazon.com Inc"), ("GOOGL", "Alphabet Inc"), ("META", "Meta Platforms Inc"),
+    ("TSLA", "Tesla Inc"), ("AMD", "Advanced Micro Devices"), ("NFLX", "Netflix Inc"),
+    ("JPM", "JPMorgan Chase & Co"), ("V", "Visa Inc"), ("DIS", "Walt Disney Co"),
+    ("KO", "Coca-Cola Co"), ("COST", "Costco Wholesale Corp"), ("SPY", "SPDR S&P 500 ETF"),
+]
 
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 
@@ -136,3 +145,86 @@ async def get_company_news(symbol: str, days: int = 7) -> list[NewsItem]:
         )
         for row in rows[:15]
     ]
+
+
+def _mock_history(symbol: str, days: int) -> History:
+    """Deterministic random-walk series so charts render offline."""
+    s = _seed(symbol)
+    price = 20 + s * 480
+    now = int(time.time())
+    candles: list[Candle] = []
+    # Simple LCG seeded by the ticker for repeatable pseudo-randomness.
+    state = int(_seed(symbol) * 1_000_000) + 1
+    for i in range(days, 0, -1):
+        state = (1103515245 * state + 12345) % 2_147_483_648
+        drift = (state / 2_147_483_648 - 0.5) * price * 0.03
+        o = price
+        c = max(1.0, price + drift)
+        h = max(o, c) * 1.01
+        low = min(o, c) * 0.99
+        candles.append(
+            Candle(t=now - i * 86400, o=round(o, 2), h=round(h, 2),
+                   l=round(low, 2), c=round(c, 2))
+        )
+        price = c
+    return History(symbol=symbol.upper(), candles=candles, is_mock=True)
+
+
+async def get_history(symbol: str, days: int = 30) -> History:
+    """Daily OHLC candles. Finnhub's candle endpoint is premium-gated, so we
+    try it and fall back to a generated series on any error / empty result."""
+    if not settings.has_finnhub:
+        return _mock_history(symbol, days)
+
+    to_ts = int(time.time())
+    frm = to_ts - days * 86400
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"{FINNHUB_BASE}/stock/candle",
+                params={
+                    "symbol": symbol.upper(), "resolution": "D",
+                    "from": frm, "to": to_ts, "token": settings.finnhub_api_key,
+                },
+            )
+            r.raise_for_status()
+            d = r.json()
+        if d.get("s") != "ok" or not d.get("c"):
+            return _mock_history(symbol, days)
+        candles = [
+            Candle(t=d["t"][i], o=d["o"][i], h=d["h"][i], l=d["l"][i], c=d["c"][i])
+            for i in range(len(d["c"]))
+        ]
+        return History(symbol=symbol.upper(), candles=candles, is_mock=False)
+    except httpx.HTTPError:
+        return _mock_history(symbol, days)
+
+
+async def search_symbols(query: str) -> list[SearchResult]:
+    q = query.strip().upper()
+    if not q:
+        return []
+    if not settings.has_finnhub:
+        return [
+            SearchResult(symbol=sym, description=desc, type="Common Stock")
+            for sym, desc in _UNIVERSE
+            if q in sym or q in desc.upper()
+        ][:10]
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{FINNHUB_BASE}/search",
+            params={"q": query, "token": settings.finnhub_api_key},
+        )
+        r.raise_for_status()
+        rows = r.json().get("result", [])
+
+    return [
+        SearchResult(
+            symbol=row.get("symbol", ""),
+            description=row.get("description", ""),
+            type=row.get("type", ""),
+        )
+        for row in rows
+        if row.get("symbol") and "." not in row.get("symbol", "")
+    ][:15]
