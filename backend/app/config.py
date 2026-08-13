@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-5"
 
+    # Market data provider: "yahoo" (free, no key), "finnhub" (needs key),
+    # or "mock" (offline). "auto" picks finnhub if a key is set, else yahoo.
+    market_provider: str = "auto"
+
+    # Paper-trading starting cash for a new account.
+    starting_cash: float = 100_000.0
+
     # Where the SQLite portfolio lives (relative to backend/).
     db_path: str = "stocksense.db"
 
@@ -28,6 +35,13 @@ class Settings(BaseSettings):
     @property
     def has_anthropic(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def provider(self) -> str:
+        """Resolve 'auto' to a concrete provider."""
+        if self.market_provider != "auto":
+            return self.market_provider
+        return "finnhub" if self.has_finnhub else "yahoo"
 
 
 settings = Settings()

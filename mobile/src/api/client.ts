@@ -18,29 +18,43 @@ export type Quote = {
   is_mock: boolean;
 };
 
-export type HoldingWithQuote = {
-  id: number;
+export type Position = {
   symbol: string;
-  shares: number;
-  cost_basis: number;
+  quantity: number;
+  avg_cost: number;
   price: number;
   market_value: number;
-  total_cost: number;
-  gain: number;
-  gain_percent: number;
+  cost_basis: number;
+  unrealized_pl: number;
+  unrealized_pl_percent: number;
   day_change: number;
   day_change_percent: number;
 };
 
-export type PortfolioSummary = {
-  holdings: HoldingWithQuote[];
+export type AccountSummary = {
+  cash: number;
+  buying_power: number;
+  positions: Position[];
+  invested: number;
+  market_value: number;
   total_value: number;
-  total_cost: number;
-  total_gain: number;
-  total_gain_percent: number;
+  total_pl: number;
+  total_pl_percent: number;
   day_change: number;
   day_change_percent: number;
+  starting_cash: number;
 };
+
+export type Trade = {
+  id: number;
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: number;
+  price: number;
+  ts: number;
+};
+
+export type Fill = { trade: Trade; cash_after: number };
 
 export type NewsItem = {
   headline: string;
@@ -130,19 +144,17 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => req<User>("/api/auth/me"),
-  getPortfolio: () => req<PortfolioSummary>("/api/portfolio"),
+  getPortfolio: () => req<AccountSummary>("/api/account"),
+  getAccount: () => req<AccountSummary>("/api/account"),
+  placeOrder: (o: { symbol: string; side: "buy" | "sell"; quantity: number }) =>
+    req<Fill>("/api/orders", { method: "POST", body: JSON.stringify(o) }),
+  getOrders: () => req<Trade[]>("/api/orders"),
+  resetAccount: () => req<AccountSummary>("/api/account/reset", { method: "POST" }),
   getBrief: () => req<Brief>("/api/portfolio/brief"),
   getNews: (symbol: string) => req<NewsItem[]>(`/api/news/${symbol}`),
   getQuote: (symbol: string) => req<Quote>(`/api/quote/${symbol}`),
   getHistory: (symbol: string, days = 30) =>
     req<History>(`/api/history/${symbol}?days=${days}`),
-  addHolding: (h: { symbol: string; shares: number; cost_basis: number }) =>
-    req<HoldingWithQuote>("/api/holdings", {
-      method: "POST",
-      body: JSON.stringify(h),
-    }),
-  deleteHolding: (id: number) =>
-    req<void>(`/api/holdings/${id}`, { method: "DELETE" }),
   search: (q: string) =>
     req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
   getWatchlist: () => req<WatchItem[]>("/api/watchlist"),

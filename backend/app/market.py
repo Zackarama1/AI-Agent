@@ -1,8 +1,15 @@
-"""Market data: real quotes + news from Finnhub, with a mock fallback.
+"""Market data with pluggable providers.
 
-If FINNHUB_API_KEY is unset, every function returns deterministic pseudo-data
-derived from the ticker string so the app is fully demoable offline. Swap in
-a real key and the same functions hit Finnhub — no other code changes.
+Providers (settings.market_provider, default "auto"):
+  - "yahoo":   Yahoo Finance public endpoints — real quotes/history/news, NO
+               API key required. This is the default and what makes the app
+               show live data out of the box on a normal network.
+  - "finnhub": Finnhub REST — needs FINNHUB_API_KEY.
+  - "mock":    Deterministic pseudo-data from the ticker, fully offline.
+
+Every public function tries the configured provider and falls back to mock on
+any network/parse error, so the app never hard-fails (and still runs in
+locked-down/CI environments with no egress).
 """
 
 import hashlib
@@ -23,6 +30,12 @@ _UNIVERSE = [
 ]
 
 FINNHUB_BASE = "https://finnhub.io/api/v1"
+YAHOO_BASE = "https://query1.finance.yahoo.com"
+_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+
+def _provider() -> str:
+    return settings.provider
 
 
 def _seed(symbol: str) -> float:
@@ -30,6 +43,10 @@ def _seed(symbol: str) -> float:
     h = hashlib.sha256(symbol.upper().encode()).hexdigest()
     return int(h[:8], 16) / 0xFFFFFFFF
 
+
+# ===========================================================================
+# MOCK provider
+# ===========================================================================
 
 def _mock_quote(symbol: str) -> Quote:
     s = _seed(symbol)
@@ -49,42 +66,6 @@ def _mock_quote(symbol: str) -> Quote:
     )
 
 
-async def get_quote(symbol: str) -> Quote:
-    if not settings.has_finnhub:
-        return _mock_quote(symbol)
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"{FINNHUB_BASE}/quote",
-            params={"symbol": symbol.upper(), "token": settings.finnhub_api_key},
-        )
-        r.raise_for_status()
-        d = r.json()
-
-    # Finnhub returns 0s for unknown symbols; treat that as a fallback.
-    if not d.get("c"):
-        return _mock_quote(symbol)
-
-    return Quote(
-        symbol=symbol.upper(),
-        price=d["c"],
-        change=d.get("d") or 0.0,
-        percent_change=d.get("dp") or 0.0,
-        high=d.get("h") or d["c"],
-        low=d.get("l") or d["c"],
-        open=d.get("o") or d["c"],
-        prev_close=d.get("pc") or d["c"],
-        is_mock=False,
-    )
-
-
-async def get_quotes(symbols: list[str]) -> dict[str, Quote]:
-    quotes: dict[str, Quote] = {}
-    for sym in symbols:
-        quotes[sym.upper()] = await get_quote(sym)
-    return quotes
-
-
 def _mock_news(symbol: str) -> list[NewsItem]:
     sym = symbol.upper()
     now = int(time.time())
@@ -100,172 +81,194 @@ def _mock_news(symbol: str) -> list[NewsItem]:
          "expects to contribute to growth next year."),
     ]
     return [
-        NewsItem(
-            headline=h,
-            summary=s,
-            source="MockWire",
-            url="https://example.com",
-            datetime=now - i * 3600,
-        )
+        NewsItem(headline=h, summary=s, source="MockWire",
+                 url="https://example.com", datetime=now - i * 3600)
         for i, (h, s) in enumerate(templates)
     ]
 
 
-async def get_company_news(symbol: str, days: int = 7) -> list[NewsItem]:
-    if not settings.has_finnhub:
-        return _mock_news(symbol)
-
-    to_ts = time.time()
-    frm = time.strftime("%Y-%m-%d", time.gmtime(to_ts - days * 86400))
-    to = time.strftime("%Y-%m-%d", time.gmtime(to_ts))
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"{FINNHUB_BASE}/company-news",
-            params={
-                "symbol": symbol.upper(),
-                "from": frm,
-                "to": to,
-                "token": settings.finnhub_api_key,
-            },
-        )
-        r.raise_for_status()
-        rows = r.json()
-
-    if not rows:
-        return _mock_news(symbol)
-
-    return [
-        NewsItem(
-            headline=row.get("headline", ""),
-            summary=row.get("summary", ""),
-            source=row.get("source", ""),
-            url=row.get("url", ""),
-            datetime=row.get("datetime", 0),
-        )
-        for row in rows[:15]
-    ]
-
-
 def _mock_history(symbol: str, days: int) -> History:
-    """Deterministic random-walk series so charts render offline."""
     s = _seed(symbol)
     price = 20 + s * 480
     now = int(time.time())
     candles: list[Candle] = []
-    # Simple LCG seeded by the ticker for repeatable pseudo-randomness.
     state = int(_seed(symbol) * 1_000_000) + 1
     for i in range(days, 0, -1):
         state = (1103515245 * state + 12345) % 2_147_483_648
         drift = (state / 2_147_483_648 - 0.5) * price * 0.03
         o = price
         c = max(1.0, price + drift)
-        h = max(o, c) * 1.01
-        low = min(o, c) * 0.99
         candles.append(
-            Candle(t=now - i * 86400, o=round(o, 2), h=round(h, 2),
-                   l=round(low, 2), c=round(c, 2))
+            Candle(t=now - i * 86400, o=round(o, 2), h=round(max(o, c) * 1.01, 2),
+                   l=round(min(o, c) * 0.99, 2), c=round(c, 2))
         )
         price = c
     return History(symbol=symbol.upper(), candles=candles, is_mock=True)
 
 
-async def get_history(symbol: str, days: int = 30) -> History:
-    """Daily OHLC candles. Finnhub's candle endpoint is premium-gated, so we
-    try it and fall back to a generated series on any error / empty result."""
-    if not settings.has_finnhub:
-        return _mock_history(symbol, days)
+# ===========================================================================
+# YAHOO provider (no API key)
+# ===========================================================================
 
-    to_ts = int(time.time())
-    frm = to_ts - days * 86400
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"{FINNHUB_BASE}/stock/candle",
-                params={
-                    "symbol": symbol.upper(), "resolution": "D",
-                    "from": frm, "to": to_ts, "token": settings.finnhub_api_key,
-                },
-            )
-            r.raise_for_status()
-            d = r.json()
-        if d.get("s") != "ok" or not d.get("c"):
-            return _mock_history(symbol, days)
-        candles = [
-            Candle(t=d["t"][i], o=d["o"][i], h=d["h"][i], l=d["l"][i], c=d["c"][i])
-            for i in range(len(d["c"]))
-        ]
-        return History(symbol=symbol.upper(), candles=candles, is_mock=False)
-    except httpx.HTTPError:
-        return _mock_history(symbol, days)
+def _yahoo_range(days: int) -> tuple[str, str]:
+    if days <= 7:
+        return "5d", "1d"
+    if days <= 31:
+        return "1mo", "1d"
+    if days <= 93:
+        return "3mo", "1d"
+    if days <= 186:
+        return "6mo", "1d"
+    return "1y", "1d"
 
 
-def _mock_earnings(symbol: str, days: int) -> list[EarningsEvent]:
-    """A single plausible upcoming earnings date, seeded by the ticker."""
-    s = _seed(symbol)
-    offset = int(s * days)  # 0..days ahead
-    date = time.strftime("%Y-%m-%d", time.gmtime(time.time() + offset * 86400))
-    return [
-        EarningsEvent(
-            symbol=symbol.upper(),
-            date=date,
-            hour="amc" if s > 0.5 else "bmo",
-            eps_estimate=round(0.5 + s * 3, 2),
-            quarter=((time.gmtime().tm_mon - 1) // 3) + 1,
-            year=time.gmtime().tm_year,
-            is_mock=True,
+async def _yahoo_chart(symbol: str, rng: str, interval: str) -> dict:
+    async with httpx.AsyncClient(timeout=12, headers={"User-Agent": _UA}) as client:
+        r = await client.get(
+            f"{YAHOO_BASE}/v8/finance/chart/{symbol.upper()}",
+            params={"range": rng, "interval": interval, "includePrePost": "false"},
         )
-    ]
+        r.raise_for_status()
+        return r.json()["chart"]["result"][0]
 
 
-async def get_earnings(symbol: str, days: int = 90) -> list[EarningsEvent]:
-    """Upcoming earnings for one symbol (today → +days)."""
-    if not settings.has_finnhub:
-        return _mock_earnings(symbol, days)
+def parse_yahoo_quote(symbol: str, result: dict) -> Quote:
+    """Pure parser for a Yahoo chart result → Quote (unit-testable offline)."""
+    m = result["meta"]
+    price = m["regularMarketPrice"]
+    prev = m.get("chartPreviousClose") or m.get("previousClose") or price
+    return Quote(
+        symbol=m.get("symbol", symbol.upper()),
+        price=round(price, 2),
+        change=round(price - prev, 2),
+        percent_change=round(((price - prev) / prev) * 100, 2) if prev else 0.0,
+        high=round(m.get("regularMarketDayHigh") or price, 2),
+        low=round(m.get("regularMarketDayLow") or price, 2),
+        open=round(m.get("regularMarketOpen") or prev, 2),
+        prev_close=round(prev, 2),
+        is_mock=False,
+    )
 
-    frm = time.strftime("%Y-%m-%d", time.gmtime())
-    to = time.strftime("%Y-%m-%d", time.gmtime(time.time() + days * 86400))
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"{FINNHUB_BASE}/calendar/earnings",
-                params={"symbol": symbol.upper(), "from": frm, "to": to,
-                        "token": settings.finnhub_api_key},
+
+def parse_yahoo_history(symbol: str, result: dict) -> History:
+    """Pure parser for a Yahoo chart result → History (unit-testable offline)."""
+    ts = result.get("timestamp", [])
+    q = result["indicators"]["quote"][0]
+    candles: list[Candle] = []
+    for i, t in enumerate(ts):
+        c = q["close"][i]
+        if c is None:
+            continue
+        candles.append(
+            Candle(
+                t=t,
+                o=round(q["open"][i] if q["open"][i] is not None else c, 2),
+                h=round(q["high"][i] if q["high"][i] is not None else c, 2),
+                l=round(q["low"][i] if q["low"][i] is not None else c, 2),
+                c=round(c, 2),
             )
-            r.raise_for_status()
-            rows = r.json().get("earningsCalendar", [])
-    except httpx.HTTPError:
-        return _mock_earnings(symbol, days)
+        )
+    if not candles:
+        raise ValueError("no candles")
+    return History(symbol=symbol.upper(), candles=candles, is_mock=False)
 
+
+async def _yahoo_quote(symbol: str) -> Quote:
+    return parse_yahoo_quote(symbol, await _yahoo_chart(symbol, "1d", "1d"))
+
+
+async def _yahoo_history(symbol: str, days: int) -> History:
+    rng, interval = _yahoo_range(days)
+    return parse_yahoo_history(symbol, await _yahoo_chart(symbol, rng, interval))
+
+
+async def _yahoo_search(query: str) -> list[SearchResult]:
+    async with httpx.AsyncClient(timeout=12, headers={"User-Agent": _UA}) as client:
+        r = await client.get(
+            f"{YAHOO_BASE}/v1/finance/search",
+            params={"q": query, "quotesCount": 12, "newsCount": 0},
+        )
+        r.raise_for_status()
+        rows = r.json().get("quotes", [])
+    out = []
+    for row in rows:
+        sym = row.get("symbol")
+        if not sym or row.get("quoteType") not in ("EQUITY", "ETF", None):
+            continue
+        out.append(SearchResult(
+            symbol=sym,
+            description=row.get("shortname") or row.get("longname") or sym,
+            type=row.get("quoteType", ""),
+        ))
+    return out[:15]
+
+
+async def _yahoo_news(symbol: str) -> list[NewsItem]:
+    async with httpx.AsyncClient(timeout=12, headers={"User-Agent": _UA}) as client:
+        r = await client.get(
+            f"{YAHOO_BASE}/v1/finance/search",
+            params={"q": symbol, "quotesCount": 0, "newsCount": 15},
+        )
+        r.raise_for_status()
+        rows = r.json().get("news", [])
+    return [
+        NewsItem(
+            headline=n.get("title", ""),
+            summary=n.get("publisher", ""),
+            source=n.get("publisher", ""),
+            url=n.get("link", ""),
+            datetime=int(n.get("providerPublishTime", 0)),
+        )
+        for n in rows
+        if n.get("title")
+    ][:15]
+
+
+# ===========================================================================
+# FINNHUB provider
+# ===========================================================================
+
+async def _finnhub_quote(symbol: str) -> Quote:
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{FINNHUB_BASE}/quote",
+            params={"symbol": symbol.upper(), "token": settings.finnhub_api_key},
+        )
+        r.raise_for_status()
+        d = r.json()
+    if not d.get("c"):
+        raise ValueError("empty quote")
+    return Quote(
+        symbol=symbol.upper(), price=d["c"], change=d.get("d") or 0.0,
+        percent_change=d.get("dp") or 0.0, high=d.get("h") or d["c"],
+        low=d.get("l") or d["c"], open=d.get("o") or d["c"],
+        prev_close=d.get("pc") or d["c"], is_mock=False,
+    )
+
+
+async def _finnhub_news(symbol: str, days: int) -> list[NewsItem]:
+    to_ts = time.time()
+    frm = time.strftime("%Y-%m-%d", time.gmtime(to_ts - days * 86400))
+    to = time.strftime("%Y-%m-%d", time.gmtime(to_ts))
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{FINNHUB_BASE}/company-news",
+            params={"symbol": symbol.upper(), "from": frm, "to": to,
+                    "token": settings.finnhub_api_key},
+        )
+        r.raise_for_status()
+        rows = r.json()
     if not rows:
-        return _mock_earnings(symbol, days)
-
+        raise ValueError("no news")
     return [
-        EarningsEvent(
-            symbol=symbol.upper(),
-            date=row.get("date", ""),
-            hour=row.get("hour", "") or "",
-            eps_estimate=row.get("epsEstimate"),
-            eps_actual=row.get("epsActual"),
-            quarter=row.get("quarter"),
-            year=row.get("year"),
-            is_mock=False,
-        )
-        for row in rows
+        NewsItem(headline=row.get("headline", ""), summary=row.get("summary", ""),
+                 source=row.get("source", ""), url=row.get("url", ""),
+                 datetime=row.get("datetime", 0))
+        for row in rows[:15]
     ]
 
 
-async def search_symbols(query: str) -> list[SearchResult]:
-    q = query.strip().upper()
-    if not q:
-        return []
-    if not settings.has_finnhub:
-        return [
-            SearchResult(symbol=sym, description=desc, type="Common Stock")
-            for sym, desc in _UNIVERSE
-            if q in sym or q in desc.upper()
-        ][:10]
-
+async def _finnhub_search(query: str) -> list[SearchResult]:
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(
             f"{FINNHUB_BASE}/search",
@@ -273,13 +276,116 @@ async def search_symbols(query: str) -> list[SearchResult]:
         )
         r.raise_for_status()
         rows = r.json().get("result", [])
-
     return [
-        SearchResult(
-            symbol=row.get("symbol", ""),
-            description=row.get("description", ""),
-            type=row.get("type", ""),
-        )
-        for row in rows
-        if row.get("symbol") and "." not in row.get("symbol", "")
+        SearchResult(symbol=row.get("symbol", ""), description=row.get("description", ""),
+                     type=row.get("type", ""))
+        for row in rows if row.get("symbol") and "." not in row.get("symbol", "")
     ][:15]
+
+
+# ===========================================================================
+# Public API — dispatch to provider, fall back to mock on any error
+# ===========================================================================
+
+async def get_quote(symbol: str) -> Quote:
+    p = _provider()
+    try:
+        if p == "yahoo":
+            return await _yahoo_quote(symbol)
+        if p == "finnhub":
+            return await _finnhub_quote(symbol)
+    except Exception:
+        pass
+    return _mock_quote(symbol)
+
+
+async def get_quotes(symbols: list[str]) -> dict[str, Quote]:
+    quotes: dict[str, Quote] = {}
+    for sym in symbols:
+        quotes[sym.upper()] = await get_quote(sym)
+    return quotes
+
+
+async def get_history(symbol: str, days: int = 30) -> History:
+    p = _provider()
+    try:
+        if p == "yahoo":
+            return await _yahoo_history(symbol, days)
+    except Exception:
+        pass
+    # Finnhub candles are premium-gated; mock is the fallback for both.
+    return _mock_history(symbol, days)
+
+
+async def get_company_news(symbol: str, days: int = 7) -> list[NewsItem]:
+    p = _provider()
+    try:
+        if p == "yahoo":
+            return await _yahoo_news(symbol)
+        if p == "finnhub":
+            return await _finnhub_news(symbol, days)
+    except Exception:
+        pass
+    return _mock_news(symbol)
+
+
+async def search_symbols(query: str) -> list[SearchResult]:
+    q = query.strip()
+    if not q:
+        return []
+    p = _provider()
+    try:
+        if p == "yahoo":
+            res = await _yahoo_search(q)
+            if res:
+                return res
+        if p == "finnhub":
+            res = await _finnhub_search(q)
+            if res:
+                return res
+    except Exception:
+        pass
+    qu = q.upper()
+    return [
+        SearchResult(symbol=sym, description=desc, type="Common Stock")
+        for sym, desc in _UNIVERSE if qu in sym or qu in desc.upper()
+    ][:10]
+
+
+# ---- Earnings (Finnhub calendar or mock; Yahoo has no clean free endpoint) --
+
+def _mock_earnings(symbol: str, days: int) -> list[EarningsEvent]:
+    s = _seed(symbol)
+    offset = int(s * days)
+    date = time.strftime("%Y-%m-%d", time.gmtime(time.time() + offset * 86400))
+    return [EarningsEvent(
+        symbol=symbol.upper(), date=date, hour="amc" if s > 0.5 else "bmo",
+        eps_estimate=round(0.5 + s * 3, 2),
+        quarter=((time.gmtime().tm_mon - 1) // 3) + 1, year=time.gmtime().tm_year,
+        is_mock=True,
+    )]
+
+
+async def get_earnings(symbol: str, days: int = 90) -> list[EarningsEvent]:
+    if settings.provider == "finnhub":
+        frm = time.strftime("%Y-%m-%d", time.gmtime())
+        to = time.strftime("%Y-%m-%d", time.gmtime(time.time() + days * 86400))
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    f"{FINNHUB_BASE}/calendar/earnings",
+                    params={"symbol": symbol.upper(), "from": frm, "to": to,
+                            "token": settings.finnhub_api_key},
+                )
+                r.raise_for_status()
+                rows = r.json().get("earningsCalendar", [])
+            if rows:
+                return [EarningsEvent(
+                    symbol=symbol.upper(), date=row.get("date", ""),
+                    hour=row.get("hour", "") or "", eps_estimate=row.get("epsEstimate"),
+                    eps_actual=row.get("epsActual"), quarter=row.get("quarter"),
+                    year=row.get("year"), is_mock=False,
+                ) for row in rows]
+        except httpx.HTTPError:
+            pass
+    return _mock_earnings(symbol, days)

@@ -13,11 +13,21 @@ English.
 
 | Apple Stocks | StockSense |
 |---|---|
-| Watchlist only | Real portfolio: holdings, cost basis, live P/L, allocation |
-| Generic headline feed | AI-summarized news per holding |
-| Price only | Quotes + fundamentals + news, one tap away |
+| Watchlist only | **Paper trading**: buy/sell with virtual cash, real fills |
+| No holdings | Positions with live P/L, average cost, allocation |
+| Generic headline feed | Live per-stock news + AI-summarized brief |
+| Price only | Live quotes + charts + news + earnings, one tap away |
 | No analysis | **Claude daily brief: "what happened & why"** |
 | One fixed UI | **Simple** (clean) and **Advanced** (fintech dashboard) modes |
+
+## Live data + paper trading
+
+- **Live market data with no API key.** Quotes, charts, and news come from
+  Yahoo Finance's public API by default — real data, out of the box. Falls back
+  to mock data offline; switch to Finnhub with a key via `MARKET_PROVIDER`.
+- **Paper trading.** Every account starts with $100k of virtual cash. Buy and
+  sell at live prices; positions and average cost are derived from your fills,
+  with a full activity log. Reset anytime.
 
 ## Two UI modes
 
@@ -38,9 +48,10 @@ mobile/   Expo (React Native + TypeScript) app  →  iOS + Android, App Store vi
    │  (never holds API keys)
    ▼
 backend/  FastAPI (Python)
-   ├── Finnhub      real-time quotes + company news
-   ├── Claude       the AI daily brief
-   └── SQLite       portfolio storage + live P/L math
+   ├── Yahoo/Finnhub  live quotes, charts, news (Yahoo needs no key)
+   ├── Trading        paper account: cash, market orders, derived positions
+   ├── Claude         the AI daily brief
+   └── SQLite         accounts, trades, watchlist, alerts (per-user)
 ```
 
 The backend exists so **API keys never ship inside the app**, quotes can be
@@ -72,21 +83,24 @@ See `backend/README.md` and `mobile/README.md` for details.
 
 ## APIs used
 
-- **[Finnhub](https://finnhub.io)** — real-time US quotes, company news, earnings.
-  Free tier to prototype; scale to [Polygon.io](https://polygon.io) for full
-  real-time depth.
+- **Yahoo Finance public API** — live quotes, history, and news. No key needed;
+  the default provider.
+- **[Finnhub](https://finnhub.io)** — optional alternative (needs a key); adds an
+  earnings calendar. Scale to [Polygon.io](https://polygon.io) for full depth.
 - **Claude (Anthropic API)** — the AI daily brief and news summaries.
-- **Planned: [SnapTrade](https://snaptrade.com) / [Plaid Investments](https://plaid.com)**
-  — link a real brokerage so holdings sync automatically.
 
-> ⚠️ Real-time exchange data carries licensing terms. Vendor display-tier plans
-> generally cover a consumer app, but check before redistributing quotes.
+> ⚠️ Yahoo's endpoints are unofficial and rate-limited — fine for a personal /
+> paper-trading app; use a licensed vendor (Finnhub/Polygon) for production
+> traffic. Real-time exchange data also carries licensing terms; check your
+> vendor plan before redistributing quotes.
 
 ## Roadmap
 
 - [x] **Phase 1 — Foundation:** FastAPI backend + Expo app shell, live quotes.
 - [x] **Phase 2 — Portfolio:** holdings, cost basis, live P/L, allocation.
-- [x] **Phase 3 — AI layer:** Claude daily brief + per-holding news.
+- [x] **Phase 3 — AI layer:** Claude daily brief + per-position news.
+- [x] **Reinvention — real app:** live Yahoo data (no key), paper-trading engine
+      (buy/sell, derived positions, activity log), trade UI + account views.
 - [~] **Phase 4 — Polish:** price charts ✓, watchlist ✓, symbol search ✓,
       bottom-tab navigation ✓, push-notification price alerts ✓, multi-user
       auth ✓ (email/password, JWT, per-user data), Simple/Advanced UI modes ✓,

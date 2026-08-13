@@ -1,14 +1,22 @@
 # StockSense API
 
-FastAPI backend that powers the StockSense mobile app. It proxies market data
-and Claude (so no API keys ever ship inside the app), stores the portfolio, and
-computes live P/L.
+FastAPI backend that powers the StockSense mobile app: live market data, a
+paper-trading engine (virtual cash, market orders, positions derived from
+fills), and Claude-powered insights — all behind per-user auth.
 
-## Runs with zero keys
+## Live data with no API key
 
-Every external key is **optional**. With no `.env`, the backend serves realistic
-mock quotes, news, and a templated brief — so you can run the whole app before
-signing up for anything. Add keys to switch on live data and AI, no code changes.
+Market data defaults to **Yahoo Finance's public API — real quotes, history,
+and news with no key required**. On a normal network it works out of the box.
+In an offline/locked-down environment it automatically falls back to
+deterministic mock data, so the app never hard-fails. Set `MARKET_PROVIDER`
+to `finnhub` (with a key), `yahoo`, or `mock` to override.
+
+## Paper trading
+
+Every user starts with virtual cash (`STARTING_CASH`, default $100k). Orders
+fill immediately at the current live price; positions and average cost are
+**derived by replaying fills**, so there's no holdings table to drift.
 
 ## Setup
 
@@ -16,7 +24,7 @@ signing up for anything. Add keys to switch on live data and AI, no code changes
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # optional: add FINNHUB_API_KEY / ANTHROPIC_API_KEY
+cp .env.example .env            # optional — live data works with no keys
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -36,10 +44,11 @@ Everything below `/api/auth/*` and the market-data reads (`quote`, `news`,
 | GET  | `/api/auth/me` | Current user (requires token) |
 | GET  | `/api/quote/{symbol}` | Real-time quote |
 | GET  | `/api/news/{symbol}` | Recent company news |
-| GET  | `/api/holdings` | Raw holdings list |
-| POST | `/api/holdings` | Add a holding `{symbol, shares, cost_basis}` |
-| DELETE | `/api/holdings/{id}` | Remove a holding |
-| GET  | `/api/portfolio` | Holdings enriched with live quotes + totals |
+| GET  | `/api/account` | Paper account: cash, positions, P/L, totals |
+| POST | `/api/orders` | Place a market order `{symbol, side, quantity}` |
+| GET  | `/api/orders` | Trade history |
+| POST | `/api/account/reset` | Reset to starting cash, clear trades |
+| GET  | `/api/portfolio` | Alias of `/api/account` (the app's portfolio view) |
 | GET  | `/api/portfolio/brief` | Claude's daily "what happened & why" |
 | GET  | `/api/history/{symbol}?days=` | Daily OHLC candles for charts |
 | GET  | `/api/search?q=` | Ticker / company symbol search |

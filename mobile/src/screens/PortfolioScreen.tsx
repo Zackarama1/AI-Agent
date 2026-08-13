@@ -9,23 +9,23 @@ import {
   View,
 } from "react-native";
 
-import { api, PortfolioSummary } from "../api/client";
+import { api, AccountSummary } from "../api/client";
 import { AIBrief } from "../components/AIBrief";
-import { HoldingRow } from "../components/HoldingRow";
+import { PositionRow } from "../components/PositionRow";
 import { ModeSwitch } from "../components/ModeSwitch";
 import { useApp } from "../state/AppState";
 import { gainColor, money, pct, theme } from "../theme";
 
 export function PortfolioScreen({ navigation }: any) {
   const { logout } = useApp();
-  const [data, setData] = useState<PortfolioSummary | null>(null);
+  const [data, setData] = useState<AccountSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setError(null);
     api
-      .getPortfolio()
+      .getAccount()
       .then(setData)
       .catch(() =>
         setError("Can't reach the backend. Is it running, and is the API URL right?"),
@@ -35,7 +35,7 @@ export function PortfolioScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => load(), [load]));
 
-  const empty = data && data.holdings.length === 0;
+  const empty = data && data.positions.length === 0;
 
   return (
     <View style={styles.container}>
@@ -55,9 +55,14 @@ export function PortfolioScreen({ navigation }: any) {
           <View>
             <View style={styles.topBar}>
               <ModeSwitch />
-              <TouchableOpacity onPress={logout}>
-                <Text style={styles.logout}>Log out</Text>
-              </TouchableOpacity>
+              <View style={styles.topRight}>
+                <TouchableOpacity onPress={() => navigation.navigate("Orders")}>
+                  <Text style={styles.link}>Activity</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={logout}>
+                  <Text style={styles.logout}>Log out</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <Text style={styles.h1}>Portfolio</Text>
             {data && (
@@ -66,33 +71,40 @@ export function PortfolioScreen({ navigation }: any) {
                 <Text style={[styles.heroChange, { color: gainColor(data.day_change) }]}>
                   {money(data.day_change)} ({pct(data.day_change_percent)}) today
                 </Text>
-                <Text style={[styles.heroSub, { color: gainColor(data.total_gain) }]}>
-                  {money(data.total_gain)} ({pct(data.total_gain_percent)}) all time
+                <Text style={[styles.heroSub, { color: gainColor(data.total_pl) }]}>
+                  {money(data.total_pl)} ({pct(data.total_pl_percent)}) total P/L
                 </Text>
+                <View style={styles.cashRow}>
+                  <View>
+                    <Text style={styles.cashLabel}>Cash / buying power</Text>
+                    <Text style={styles.cashValue}>{money(data.buying_power)}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.cashLabel}>Invested</Text>
+                    <Text style={styles.cashValue}>{money(data.market_value)}</Text>
+                  </View>
+                </View>
               </View>
             )}
             {error && <Text style={styles.error}>{error}</Text>}
-            {data && data.holdings.length > 0 && <AIBrief />}
+            {data && data.positions.length > 0 && <AIBrief />}
             {empty && (
               <Text style={styles.empty}>
-                No holdings yet. Tap + to add your first position.
+                All cash. Tap + to find a stock and place your first trade.
               </Text>
             )}
           </View>
         }
-        data={data?.holdings ?? []}
-        keyExtractor={(h) => String(h.id)}
+        data={data?.positions ?? []}
+        keyExtractor={(p) => p.symbol}
         renderItem={({ item }) => (
-          <HoldingRow
-            h={item}
+          <PositionRow
+            p={item}
             onPress={() => navigation.navigate("StockDetail", { symbol: item.symbol })}
           />
         )}
       />
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("AddHolding")}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate("SearchTab")}>
         <Text style={styles.fabText}>＋</Text>
       </TouchableOpacity>
     </View>
@@ -107,6 +119,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  topRight: { flexDirection: "row", alignItems: "center", gap: 16 },
+  link: { color: theme.colors.accent, fontSize: 12, fontWeight: "600" },
   logout: { color: theme.colors.textDim, fontSize: 12 },
   h1: { color: theme.colors.text, fontSize: 28, fontWeight: "800", marginBottom: 12 },
   hero: {
@@ -120,6 +134,16 @@ const styles = StyleSheet.create({
   total: { color: theme.colors.text, fontSize: 36, fontWeight: "800" },
   heroChange: { fontSize: 16, marginTop: 6, fontWeight: "600" },
   heroSub: { fontSize: 14, marginTop: 2 },
+  cashRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopColor: theme.colors.cardBorder,
+    borderTopWidth: 1,
+  },
+  cashLabel: { color: theme.colors.textDim, fontSize: 12 },
+  cashValue: { color: theme.colors.text, fontSize: 15, fontWeight: "700", marginTop: 2 },
   empty: { color: theme.colors.textDim, textAlign: "center", marginTop: 40, fontSize: 15 },
   error: { color: theme.colors.down, marginBottom: 12, fontSize: 14 },
   fab: {

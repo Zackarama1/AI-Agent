@@ -33,16 +33,23 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000 npx expo start
   `expo-secure-store` and each user's data is kept separate.
 - Toggle **Simple** / **Advanced** layouts in-app (persisted per device).
 
+## Paper trading
+
+Every account starts with $100k of virtual cash. Buy/sell at live prices from
+any stock's detail screen; positions, average cost, and P/L are computed from
+your fills. **Activity** shows the trade log and can reset the account.
+
 ## Screens
 
-- **Portfolio** — Simple: total value, today's move, all-time gain, the ✨ AI
-  Daily Brief, tappable holdings. Advanced: greeting, gradient balance hero,
-  quick actions, performance sparkline, and an assets breakdown with allocation.
+- **Portfolio** — Simple: account value, today's move, total P/L, cash / buying
+  power, the ✨ AI Daily Brief, tappable positions. Advanced: greeting, gradient
+  balance hero, quick actions, performance sparkline, positions with allocation.
 - **Watchlist** — followed symbols with live quotes.
-- **Earnings** — upcoming earnings dates for your holdings + watchlist.
+- **Earnings** — upcoming earnings dates for your positions + watchlist.
 - **Search** — debounced ticker/company lookup.
-- **Stock Detail** — live quote, price chart (1W/1M/3M), price alerts, news.
-- **Add Holding** — ticker, shares, average cost.
+- **Stock Detail** — live quote, chart (1W/1M/3M), **Buy/Sell**, alerts, news.
+- **Trade** — buy/sell with a live estimate against your buying power.
+- **Activity** — trade history + reset paper account.
 
 ## App assets
 

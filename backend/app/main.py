@@ -3,9 +3,12 @@
 Run:  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Docs: http://localhost:8000/docs
 
+Market data comes from a live provider (Yahoo Finance by default — no key
+needed) with a mock fallback. Portfolios are paper-trading accounts: virtual
+cash, market orders at live prices, positions derived from fills.
+
 Market-data routes (quote/news/history/search) are public. Everything tied to
-a person — holdings, portfolio, watchlist, alerts, push — requires a Bearer
-token from /api/auth/login and is scoped to that user.
+a person — account, orders, watchlist, alerts — requires a Bearer token.
 """
 
 import asyncio
@@ -14,22 +17,23 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import ai, alerts, auth, market, portfolio, watchlist
+from . import ai, alerts, auth, market, portfolio, trading, watchlist
 from .config import settings
 from .models import (
+    AccountSummary,
     Alert,
     AlertIn,
     AuthResponse,
     Brief,
     EarningsEvent,
+    Fill,
     History,
-    Holding,
-    HoldingIn,
     NewsItem,
-    PortfolioSummary,
+    OrderIn,
     PushToken,
     Quote,
     SearchResult,
+    Trade,
     UserIn,
     UserOut,
     WatchIn,
@@ -41,6 +45,7 @@ from .models import (
 async def lifespan(app: FastAPI):
     portfolio.init_db()
     auth.init_db()
+    trading.init_db()
     watchlist.init_db()
     alerts.init_db()
     task = asyncio.create_task(alerts.alert_loop())
@@ -48,9 +53,8 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="StockSense API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="StockSense API", version="0.2.0", lifespan=lifespan)
 
-# Open CORS for local dev (Expo runs on a different origin/host).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -65,7 +69,8 @@ CurrentUser = Depends(auth.get_current_user)
 async def health() -> dict:
     return {
         "status": "ok",
-        "live_quotes": settings.has_finnhub,
+        "market_provider": settings.provider,
+        "live_quotes": settings.provider != "mock",
         "ai_briefs": settings.has_anthropic,
     }
 
@@ -111,11 +116,46 @@ async def search(q: str) -> list[SearchResult]:
     return await market.search_symbols(q)
 
 
-# ---- Earnings calendar (auth: scoped to the user's symbols) ----------------
+# ---- Paper-trading account (auth) -----------------------------------------
+
+@app.get("/api/account", response_model=AccountSummary)
+async def account(user: UserOut = CurrentUser) -> AccountSummary:
+    return await trading.get_account_summary(user.id)
+
+
+# Back-compat alias — the app's portfolio view is the account.
+@app.get("/api/portfolio", response_model=AccountSummary)
+async def get_portfolio(user: UserOut = CurrentUser) -> AccountSummary:
+    return await trading.get_account_summary(user.id)
+
+
+@app.post("/api/orders", response_model=Fill, status_code=201)
+async def place_order(order: OrderIn, user: UserOut = CurrentUser) -> Fill:
+    return await trading.place_order(user.id, order)
+
+
+@app.get("/api/orders", response_model=list[Trade])
+async def list_orders(user: UserOut = CurrentUser) -> list[Trade]:
+    return trading.list_trades(user.id)
+
+
+@app.post("/api/account/reset", response_model=AccountSummary)
+async def reset_account(user: UserOut = CurrentUser) -> AccountSummary:
+    trading.reset_account(user.id)
+    return await trading.get_account_summary(user.id)
+
+
+@app.get("/api/portfolio/brief", response_model=Brief)
+async def portfolio_brief(user: UserOut = CurrentUser) -> Brief:
+    summary = await trading.get_account_summary(user.id)
+    return await ai.generate_brief(summary)
+
+
+# ---- Earnings calendar (auth) ---------------------------------------------
 
 @app.get("/api/calendar/earnings", response_model=list[EarningsEvent])
 async def earnings_calendar(user: UserOut = CurrentUser) -> list[EarningsEvent]:
-    symbols = {h.symbol for h in portfolio.list_holdings(user.id)}
+    symbols = set(trading.position_symbols(user.id))
     symbols |= {w.symbol for w in await watchlist.get_all(user.id)}
     events: list[EarningsEvent] = []
     for sym in symbols:
@@ -163,7 +203,6 @@ async def remove_alert(alert_id: int, user: UserOut = CurrentUser) -> None:
 
 @app.post("/api/alerts/check", response_model=list[Alert])
 async def check_alerts_now(user: UserOut = CurrentUser) -> list[Alert]:
-    """Manually evaluate the caller's alerts now (the loop also does this)."""
     return await alerts.check_alerts(user.id)
 
 
@@ -171,32 +210,3 @@ async def check_alerts_now(user: UserOut = CurrentUser) -> list[Alert]:
 async def register_push(t: PushToken, user: UserOut = CurrentUser) -> dict:
     alerts.register_token(user.id, t.token)
     return {"ok": True}
-
-
-# ---- Portfolio / holdings (auth) ------------------------------------------
-
-@app.get("/api/holdings", response_model=list[Holding])
-async def get_holdings(user: UserOut = CurrentUser) -> list[Holding]:
-    return portfolio.list_holdings(user.id)
-
-
-@app.post("/api/holdings", response_model=Holding, status_code=201)
-async def create_holding(h: HoldingIn, user: UserOut = CurrentUser) -> Holding:
-    return portfolio.add_holding(user.id, h)
-
-
-@app.delete("/api/holdings/{holding_id}", status_code=204)
-async def remove_holding(holding_id: int, user: UserOut = CurrentUser) -> None:
-    if not portfolio.delete_holding(user.id, holding_id):
-        raise HTTPException(status_code=404, detail="Holding not found")
-
-
-@app.get("/api/portfolio", response_model=PortfolioSummary)
-async def get_portfolio(user: UserOut = CurrentUser) -> PortfolioSummary:
-    return await portfolio.get_summary(user.id)
-
-
-@app.get("/api/portfolio/brief", response_model=Brief)
-async def portfolio_brief(user: UserOut = CurrentUser) -> Brief:
-    summary = await portfolio.get_summary(user.id)
-    return await ai.generate_brief(summary)

@@ -41,42 +41,61 @@ class Quote(BaseModel):
     is_mock: bool = False
 
 
-class HoldingIn(BaseModel):
-    symbol: str = Field(..., min_length=1, max_length=10)
-    shares: float = Field(..., gt=0)
-    cost_basis: float = Field(..., ge=0, description="Average price paid per share")
-
-
-class Holding(HoldingIn):
-    id: int
-
-
-class HoldingWithQuote(Holding):
-    price: float
-    market_value: float
-    total_cost: float
-    gain: float
-    gain_percent: float
-    day_change: float
-    day_change_percent: float
-
-
-class PortfolioSummary(BaseModel):
-    holdings: list[HoldingWithQuote]
-    total_value: float
-    total_cost: float
-    total_gain: float
-    total_gain_percent: float
-    day_change: float
-    day_change_percent: float
-
-
 class NewsItem(BaseModel):
     headline: str
     summary: str
     source: str
     url: str
     datetime: int
+
+
+# ---- Paper trading --------------------------------------------------------
+
+class OrderIn(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=10)
+    side: str = Field(..., pattern="^(buy|sell)$")
+    quantity: float = Field(..., gt=0)
+
+
+class Trade(BaseModel):
+    id: int
+    symbol: str
+    side: str
+    quantity: float
+    price: float
+    ts: int
+
+
+class Fill(BaseModel):
+    trade: Trade
+    cash_after: float
+
+
+class Position(BaseModel):
+    symbol: str
+    quantity: float
+    avg_cost: float
+    price: float
+    market_value: float
+    cost_basis: float
+    unrealized_pl: float
+    unrealized_pl_percent: float
+    day_change: float
+    day_change_percent: float
+
+
+class AccountSummary(BaseModel):
+    cash: float
+    buying_power: float
+    positions: list[Position]
+    invested: float            # cost basis of open positions
+    market_value: float        # market value of positions
+    total_value: float         # cash + market_value
+    total_pl: float            # unrealized P/L on open positions
+    total_pl_percent: float
+    day_change: float
+    day_change_percent: float
+    starting_cash: float
 
 
 class Brief(BaseModel):

@@ -6,7 +6,8 @@ import { ActivityIndicator, Text, View } from "react-native";
 
 import { PortfolioTab } from "./src/screens/PortfolioTab";
 import { StockDetailScreen } from "./src/screens/StockDetailScreen";
-import { AddHoldingScreen } from "./src/screens/AddHoldingScreen";
+import { TradeScreen } from "./src/screens/TradeScreen";
+import { OrdersScreen } from "./src/screens/OrdersScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { SearchScreen } from "./src/screens/SearchScreen";
 import { CalendarScreen } from "./src/screens/CalendarScreen";
@@ -97,7 +98,8 @@ function Root() {
     >
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
       <Stack.Screen name="StockDetail" component={StockDetailScreen} options={{ title: "" }} />
-      <Stack.Screen name="AddHolding" component={AddHoldingScreen} options={{ title: "Add Holding" }} />
+      <Stack.Screen name="Trade" component={TradeScreen} options={{ title: "Trade" }} />
+      <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: "Activity" }} />
     </Stack.Navigator>
   );
 }

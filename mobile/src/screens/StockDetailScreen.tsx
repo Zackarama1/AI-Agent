@@ -20,7 +20,7 @@ const RANGES = [
   { label: "3M", days: 90 },
 ];
 
-export function StockDetailScreen({ route }: any) {
+export function StockDetailScreen({ route, navigation }: any) {
   const { symbol } = route.params as { symbol: string };
   const [quote, setQuote] = useState<Quote | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -108,6 +108,21 @@ export function StockDetailScreen({ route }: any) {
         </View>
       )}
 
+      <View style={styles.tradeRow}>
+        <TouchableOpacity
+          style={[styles.tradeBtn, { backgroundColor: theme.colors.up }]}
+          onPress={() => navigation.navigate("Trade", { symbol })}
+        >
+          <Text style={styles.tradeText}>Buy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tradeBtn, { backgroundColor: theme.colors.down }]}
+          onPress={() => navigation.navigate("Trade", { symbol })}
+        >
+          <Text style={styles.tradeText}>Sell</Text>
+        </TouchableOpacity>
+      </View>
+
       <AlertsSection symbol={symbol} />
 
       <Text style={styles.section}>Latest News</Text>
@@ -183,6 +198,9 @@ const styles = StyleSheet.create({
   statLabel: { color: theme.colors.textDim, fontSize: 12 },
   statValue: { color: theme.colors.text, fontSize: 14, fontWeight: "600", marginTop: 2 },
   section: { color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  tradeRow: { flexDirection: "row", gap: 12, marginBottom: theme.spacing(3) },
+  tradeBtn: { flex: 1, borderRadius: 14, paddingVertical: 15, alignItems: "center" },
+  tradeText: { color: "#fff", fontSize: 16, fontWeight: "800" },
   newsCard: {
     backgroundColor: theme.colors.card,
     borderColor: theme.colors.cardBorder,

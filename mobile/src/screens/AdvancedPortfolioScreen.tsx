@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { api, Candle, PortfolioSummary, WatchItem } from "../api/client";
+import { api, AccountSummary, Candle, WatchItem } from "../api/client";
 import { AIBrief } from "../components/AIBrief";
 import { LineChart } from "../components/LineChart";
 import { ModeSwitch } from "../components/ModeSwitch";
@@ -24,7 +24,7 @@ const CENTS = (v: number) => v.toFixed(2).split(".")[1];
 // greeting, gradient balance hero, quick actions, performance card, assets.
 export function AdvancedPortfolioScreen({ navigation }: any) {
   const { user, logout } = useApp();
-  const [data, setData] = useState<PortfolioSummary | null>(null);
+  const [data, setData] = useState<AccountSummary | null>(null);
   const [watch, setWatch] = useState<WatchItem[]>([]);
   const [spark, setSpark] = useState<Candle[]>([]);
   const [filter, setFilter] = useState<Filter>("All");
@@ -32,10 +32,10 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
 
   const load = useCallback(() => {
     api
-      .getPortfolio()
+      .getAccount()
       .then((p) => {
         setData(p);
-        const top = [...p.holdings].sort((a, b) => b.market_value - a.market_value)[0];
+        const top = [...p.positions].sort((a, b) => b.market_value - a.market_value)[0];
         if (top) api.getHistory(top.symbol, 30).then((h) => setSpark(h.candles)).catch(() => {});
       })
       .catch(() => {})
@@ -46,8 +46,8 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => load(), [load]));
 
   const name = user?.email?.split("@")[0] ?? "there";
-  const holdings = data?.holdings ?? [];
-  const totalValue = data?.total_value ?? 0;
+  const positions = data?.positions ?? [];
+  const marketValue = data?.market_value ?? 0;
   const showWatch = filter === "Watchlist";
 
   return (
@@ -107,19 +107,24 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
           <Text style={styles.heroCents}>.{CENTS(data?.total_value ?? 0)}</Text>
         </Text>
         {data && (
-          <Text style={styles.heroChange}>
-            {pct(data.day_change_percent)} · {money(data.day_change)} today
-          </Text>
+          <>
+            <Text style={styles.heroChange}>
+              {pct(data.day_change_percent)} · {money(data.day_change)} today
+            </Text>
+            <Text style={styles.heroCash}>
+              {money(data.buying_power)} buying power · {money(data.market_value)} invested
+            </Text>
+          </>
         )}
       </LinearGradient>
 
       {/* Quick actions + performance */}
       <View style={styles.midRow}>
         <View style={styles.actionsGrid}>
-          <Action glyph="＋" label="Add" onPress={() => navigation.navigate("AddHolding")} />
+          <Action glyph="＋" label="Trade" onPress={() => navigation.navigate("SearchTab")} />
           <Action glyph="🔍" label="Search" onPress={() => navigation.navigate("SearchTab")} />
           <Action glyph="★" label="Watchlist" onPress={() => navigation.navigate("WatchlistTab")} />
-          <Action glyph="↻" label="Refresh" onPress={load} />
+          <Action glyph="🧾" label="Activity" onPress={() => navigation.navigate("Orders")} />
         </View>
         <View style={styles.perfCard}>
           <View style={styles.perfHead}>
@@ -133,18 +138,18 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
           {spark.length > 1 ? (
             <LineChart candles={spark} height={70} width={130} />
           ) : (
-            <Text style={styles.perfEmpty}>Add a holding to see performance</Text>
+            <Text style={styles.perfEmpty}>Buy a stock to see performance</Text>
           )}
         </View>
       </View>
 
-      {holdings.length > 0 && <AIBrief />}
+      {positions.length > 0 && <AIBrief />}
 
       {/* Assets */}
       <View style={styles.assetsHead}>
-        <Text style={styles.assetsTitle}>{showWatch ? "Watchlist" : "Assets"}</Text>
+        <Text style={styles.assetsTitle}>{showWatch ? "Watchlist" : "Positions"}</Text>
         <Text style={styles.viewAll}>
-          {showWatch ? `${watch.length} tracked` : `${holdings.length} holdings`}
+          {showWatch ? `${watch.length} tracked` : `${positions.length} positions`}
         </Text>
       </View>
 
@@ -169,28 +174,28 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
               </View>
             </TouchableOpacity>
           ))
-        : holdings.map((h) => (
+        : positions.map((p) => (
             <TouchableOpacity
-              key={h.id}
+              key={p.symbol}
               style={styles.asset}
-              onPress={() => navigation.navigate("StockDetail", { symbol: h.symbol })}
+              onPress={() => navigation.navigate("StockDetail", { symbol: p.symbol })}
             >
               <View style={styles.assetLeft}>
                 <View style={styles.coin}>
-                  <Text style={styles.coinText}>{h.symbol[0]}</Text>
+                  <Text style={styles.coinText}>{p.symbol[0]}</Text>
                 </View>
                 <View>
-                  <Text style={styles.assetSym}>{h.symbol}</Text>
+                  <Text style={styles.assetSym}>{p.symbol}</Text>
                   <Text style={styles.assetShares}>
-                    {h.shares} sh ·{" "}
-                    {totalValue ? ((h.market_value / totalValue) * 100).toFixed(1) : "0"}%
+                    {p.quantity} sh ·{" "}
+                    {marketValue ? ((p.market_value / marketValue) * 100).toFixed(1) : "0"}%
                   </Text>
                 </View>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.assetVal}>{money(h.market_value)}</Text>
-                <Text style={[styles.assetChange, { color: gainColor(h.day_change_percent) }]}>
-                  {pct(h.day_change_percent)}
+                <Text style={styles.assetVal}>{money(p.market_value)}</Text>
+                <Text style={[styles.assetChange, { color: gainColor(p.day_change_percent) }]}>
+                  {pct(p.day_change_percent)}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -199,8 +204,8 @@ export function AdvancedPortfolioScreen({ navigation }: any) {
       {showWatch && watch.length === 0 && (
         <Text style={styles.empty}>Watchlist is empty. Add symbols from Search.</Text>
       )}
-      {!showWatch && holdings.length === 0 && (
-        <Text style={styles.empty}>No holdings yet. Tap Add to start.</Text>
+      {!showWatch && positions.length === 0 && (
+        <Text style={styles.empty}>All cash. Tap Trade to buy your first stock.</Text>
       )}
     </ScrollView>
   );
@@ -248,6 +253,7 @@ const styles = StyleSheet.create({
   heroValue: { color: "#fff", fontSize: 42, fontWeight: "800", marginTop: 8 },
   heroCents: { fontSize: 24, fontWeight: "700", color: "rgba(255,255,255,0.75)" },
   heroChange: { color: "rgba(255,255,255,0.9)", fontSize: 14, marginTop: 6, fontWeight: "600" },
+  heroCash: { color: "rgba(255,255,255,0.72)", fontSize: 12, marginTop: 4 },
   midRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   actionsGrid: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 10 },
   action: {
