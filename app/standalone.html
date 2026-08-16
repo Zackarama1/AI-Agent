@@ -1,0 +1,956 @@
+<title>TradeShield</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* ==========================================================================
+   TradeShield — Commercial App (immersive dark UI)
+   Mobile-first PWA · Capacitor-ready for App Store
+   ========================================================================== */
+
+:root {
+  --bg-0:      #050b1c;
+  --bg-1:      #081228;
+  --bg-2:      #0b1a38;
+  --panel:     rgba(17, 33, 66, 0.62);
+  --panel-2:   rgba(23, 42, 82, 0.55);
+  --panel-solid:#0e1e40;
+  --line:      rgba(120, 160, 220, 0.16);
+  --line-2:    rgba(120, 160, 220, 0.28);
+
+  --navy:      #0d1b3a;
+  --teal:      #29c2d8;
+  --teal-dim:  #1c93a6;
+  --blue:      #3b82f6;
+  --blue-2:    #2f6bff;
+  --gold:      #d8b866;
+  --gold-dim:  #b8963f;
+
+  --ink:       #eaf1ff;
+  --ink-soft:  #9fb2d6;
+  --ink-faint: #6b7ea6;
+
+  --ok:        #35d29a;
+  --warn:      #f0b64a;
+  --danger:    #ff6b5e;
+  --info:      #56a8ff;
+
+  --glow-teal: 0 0 24px rgba(41, 194, 216, 0.35);
+  --glow-blue: 0 0 30px rgba(59, 130, 246, 0.4);
+  --radius:    18px;
+  --radius-sm: 12px;
+  --shadow:    0 20px 50px rgba(0, 0, 0, 0.45);
+  --font:      -apple-system, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --tab-h:     72px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 700px at 85% -5%, rgba(41,194,216,0.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 100%, rgba(59,130,246,0.10), transparent 55%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1,h2,h3,h4 { margin: 0 0 .4em; line-height: 1.18; color: #fff; letter-spacing: .2px; }
+p { margin: 0 0 1em; color: var(--ink-soft); }
+a { color: var(--teal); text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ---------- app frame ---------- */
+#app { min-height: 100%; }
+.screen { display: none; padding: 20px 18px calc(var(--tab-h) + 28px); max-width: 1180px; margin: 0 auto; animation: fade .28s ease; }
+.screen.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 12px;
+  background: linear-gradient(180deg, rgba(5,11,28,.92), rgba(5,11,28,.55) 70%, transparent);
+  backdrop-filter: blur(10px);
+}
+.topbar .tb-title { font-size: 1.28rem; font-weight: 700; color: #fff; }
+.topbar .tb-sub { font-size: .74rem; color: var(--ink-faint); }
+.topbar .tb-right { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink-soft); display: grid; place-items: center;
+  transition: .15s;
+}
+.icon-btn:hover { color: #fff; border-color: var(--line-2); }
+.icon-btn svg { width: 19px; height: 19px; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  font-weight: 700; font-size: .82rem; color: #04121e;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
+  box-shadow: var(--glow-teal);
+}
+.back-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--teal); font-size: .92rem; font-weight: 600; padding: 0; }
+
+/* ---------- brand mark ---------- */
+.tsmark { width: 34px; height: 38px; filter: drop-shadow(0 0 8px rgba(41,194,216,.5)); }
+
+/* ---------- cards ---------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.card + .card { margin-top: 14px; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.card-head h2 { font-size: 1.04rem; }
+.card-head .sub { font-size: .78rem; color: var(--ink-faint); }
+
+.section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .16em; color: var(--teal); font-weight: 700; margin: 22px 2px 12px; }
+.section-label:first-child { margin-top: 6px; }
+
+/* ---------- KPI grid ---------- */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat {
+  position: relative; overflow: hidden;
+  border-radius: var(--radius-sm); padding: 15px 15px 14px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.stat::after { content:""; position:absolute; right:-30px; top:-30px; width:90px; height:90px; border-radius:50%; background: radial-gradient(circle, rgba(41,194,216,.18), transparent 70%); }
+.stat .s-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-faint); display: flex; align-items: center; gap: 7px; }
+.stat .s-val { font-size: 1.5rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.stat .s-delta { font-size: .74rem; margin-top: 2px; }
+.s-up { color: var(--ok); } .s-down { color: var(--danger); }
+.stat.accent { border-color: rgba(41,194,216,.4); box-shadow: inset 0 0 24px rgba(41,194,216,.08); }
+.stat.danger .s-val { color: var(--danger); }
+.stat.gold .s-val { color: var(--gold); }
+
+/* ---------- pills / badges ---------- */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .02em; border: 1px solid transparent; }
+.pill.ok       { background: rgba(53,210,154,.14); color: var(--ok); border-color: rgba(53,210,154,.3); }
+.pill.warn     { background: rgba(240,182,74,.14); color: var(--warn); border-color: rgba(240,182,74,.3); }
+.pill.danger   { background: rgba(255,107,94,.14); color: var(--danger); border-color: rgba(255,107,94,.3); }
+.pill.info     { background: rgba(86,168,255,.14); color: var(--info); border-color: rgba(86,168,255,.3); }
+.pill.neutral  { background: rgba(120,160,220,.12); color: var(--ink-soft); border-color: var(--line); }
+.pill.teal     { background: rgba(41,194,216,.14); color: var(--teal); border-color: rgba(41,194,216,.32); }
+.risk-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.risk-low  { background: var(--ok); box-shadow: 0 0 8px rgba(53,210,154,.7); }
+.risk-med  { background: var(--warn); box-shadow: 0 0 8px rgba(240,182,74,.7); }
+.risk-high { background: var(--danger); box-shadow: 0 0 8px rgba(255,107,94,.7); }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: none; border-radius: 13px; padding: 13px 20px; font-size: .96rem; font-weight: 700;
+  transition: transform .12s, box-shadow .12s, filter .12s;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { color: #04121e; background: linear-gradient(135deg, var(--teal), var(--blue)); box-shadow: var(--glow-blue); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); }
+.btn-ghost:hover { border-color: var(--teal); color: #fff; }
+.btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-dim)); color: #221803; }
+.btn-block { width: 100%; }
+.btn-sm { padding: 9px 14px; font-size: .84rem; border-radius: 10px; }
+.btn-danger { background: rgba(255,107,94,.14); color: var(--danger); border: 1px solid rgba(255,107,94,.35); }
+
+/* ---------- list rows (companies, cases) ---------- */
+.row-list { display: grid; gap: 10px; }
+.list-row {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 13px 14px; transition: .15s; color: inherit;
+}
+.list-row:hover { border-color: var(--line-2); background: var(--panel-2); transform: translateX(2px); }
+.list-row .lr-logo {
+  width: 44px; height: 44px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  font-weight: 800; font-size: .95rem; color: #fff;
+}
+.list-row .lr-main { flex: 1; min-width: 0; overflow: hidden; }
+.list-row .lr-meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .lr-name { display: block; font-weight: 700; color: #fff; font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .lr-meta { font-size: .77rem; color: var(--ink-faint); margin-top: 2px; }
+.list-row .lr-right { text-align: right; flex: none; }
+.list-row .lr-fig { font-weight: 700; font-variant-numeric: tabular-nums; }
+.list-row .chev { color: var(--ink-faint); flex: none; }
+
+/* ---------- search ---------- */
+.search { position: relative; margin-bottom: 14px; }
+.search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--ink-faint); }
+.search input {
+  width: 100%; padding: 13px 14px 13px 42px; border-radius: 13px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-size: .95rem; font-family: inherit;
+}
+.search input::placeholder { color: var(--ink-faint); }
+.search input:focus { outline: none; border-color: var(--teal); box-shadow: var(--glow-teal); }
+
+/* ---------- segmented control ---------- */
+.segment { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 16px; overflow-x: auto; }
+.segment button { flex: 1; white-space: nowrap; border: none; background: none; color: var(--ink-soft); font-weight: 600; font-size: .84rem; padding: 8px 12px; border-radius: 9px; transition: .15s; }
+.segment button.active { background: linear-gradient(135deg, rgba(41,194,216,.9), rgba(59,130,246,.9)); color: #041018; }
+
+/* ---------- kanban (creditor cases) ---------- */
+.kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x mandatory; }
+.kanban::-webkit-scrollbar { height: 6px; }
+.kanban::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+.kan-col { flex: 0 0 78%; max-width: 300px; scroll-snap-align: start; }
+.kan-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 3px; }
+.kan-col-head .kc-name { font-weight: 700; font-size: .84rem; color: #fff; display: flex; align-items: center; gap: 8px; }
+.kan-col-head .kc-count { font-size: .72rem; color: var(--ink-faint); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.kan-stage-bar { height: 3px; border-radius: 3px; margin-bottom: 10px; }
+.case-card { background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 13px; margin-bottom: 10px; transition: .15s; width: 100%; text-align: left; color: inherit; display: block; }
+.case-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.case-card .cc-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.case-card .cc-cred { font-weight: 700; color: #fff; font-size: .92rem; }
+.case-card .cc-cat { font-size: .72rem; color: var(--ink-faint); }
+.case-card .cc-amt { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold); margin-top: 8px; }
+.case-card .cc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: .72rem; color: var(--ink-faint); }
+
+@media (min-width: 780px) {
+  .kanban { display: grid; grid-template-columns: repeat(5, 1fr); overflow: visible; }
+  .kan-col { flex: none; max-width: none; }
+}
+
+/* ---------- timeline ---------- */
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.timeline::before { content:""; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: var(--line-2); }
+.timeline li { position: relative; padding: 0 0 18px 44px; }
+.timeline li:last-child { padding-bottom: 0; }
+.tl-node { position: absolute; left: 7px; top: 2px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--bg-0); display: grid; place-items: center; }
+.tl-node.ok    { background: var(--ok); }
+.tl-node.info  { background: var(--info); }
+.tl-node.warn  { background: var(--warn); }
+.tl-node.teal  { background: var(--teal); }
+.tl-title { font-weight: 700; color: #fff; font-size: .9rem; }
+.tl-meta  { font-size: .74rem; color: var(--ink-faint); }
+.tl-desc  { font-size: .84rem; color: var(--ink-soft); margin-top: 3px; }
+
+/* ---------- progress / meters ---------- */
+.meter { height: 9px; border-radius: 999px; background: rgba(120,160,220,.14); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--teal), var(--blue)); }
+.stage-track { display: flex; gap: 5px; margin: 12px 0; }
+.stage-track .st-seg { flex: 1; height: 6px; border-radius: 3px; background: rgba(120,160,220,.16); }
+.stage-track .st-seg.done { background: linear-gradient(90deg, var(--teal), var(--blue)); }
+.stage-track .st-seg.current { background: var(--gold); box-shadow: 0 0 10px rgba(216,184,102,.6); }
+
+/* ---------- donut ---------- */
+.donut-wrap { position: relative; width: 150px; margin: 4px auto 6px; }
+.donut { width: 150px; height: 150px; transform: rotate(-90deg); }
+.donut .trk { fill: none; stroke: rgba(120,160,220,.16); stroke-width: 12; }
+.donut .val { fill: none; stroke: url(#tsg); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
+.donut-center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.donut-center b { font-size: 1.7rem; color: #fff; }
+.donut-center span { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); }
+
+/* ---------- integrations ---------- */
+.integration { display: flex; align-items: center; gap: 14px; }
+.integration .int-logo { width: 52px; height: 52px; border-radius: 14px; flex: none; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: .9rem; }
+.integration .int-main { flex: 1; }
+.integration .int-name { font-weight: 700; color: #fff; }
+.integration .int-status { font-size: .78rem; color: var(--ink-faint); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.sync-log { font-size: .82rem; color: var(--ink-soft); border-left: 2px solid var(--line-2); padding-left: 12px; margin-top: 12px; display: grid; gap: 8px; }
+.sync-log .sl-row { display: flex; gap: 8px; align-items: baseline; }
+.sync-log .sl-time { color: var(--ink-faint); font-size: .72rem; flex: none; }
+
+/* ---------- bottom tab bar ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; height: var(--tab-h);
+  display: flex; padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  background: linear-gradient(180deg, rgba(8,18,40,.85), rgba(5,11,28,.98));
+  backdrop-filter: blur(18px); border-top: 1px solid var(--line);
+}
+.tabbar button {
+  flex: 1; border: none; background: none; color: var(--ink-faint);
+  display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: .64rem; font-weight: 600;
+  transition: color .15s;
+}
+.tabbar button svg { width: 23px; height: 23px; }
+.tabbar button.active { color: var(--teal); }
+.tabbar button.active svg { filter: drop-shadow(0 0 6px rgba(41,194,216,.7)); }
+@media (min-width: 780px) { .tabbar { max-width: 620px; margin: 0 auto; border-radius: 22px 22px 0 0; border: 1px solid var(--line); border-bottom: none; } }
+
+/* ---------- login ---------- */
+.login-screen { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 32px 24px; max-width: 440px; margin: 0 auto; }
+.login-hero { text-align: center; margin-bottom: 34px; }
+.login-hero .lh-mark { width: 76px; height: 84px; margin: 0 auto 18px; filter: drop-shadow(0 0 22px rgba(41,194,216,.55)); }
+.login-hero h1 { font-size: 2rem; letter-spacing: 1px; }
+.login-hero h1 .t { color: var(--teal); } .login-hero h1 .s { color: var(--blue); }
+.login-hero p { color: var(--ink-soft); }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+.field input {
+  width: 100%; padding: 14px; border-radius: 13px; background: var(--panel);
+  border: 1px solid var(--line); color: var(--ink); font-size: 1rem; font-family: inherit;
+}
+.field input:focus { outline: none; border-color: var(--teal); box-shadow: var(--glow-teal); }
+.login-alt { text-align: center; margin-top: 18px; font-size: .84rem; color: var(--ink-faint); }
+.demo-note { text-align: center; font-size: .74rem; color: var(--ink-faint); margin-top: 26px; padding: 12px; border: 1px dashed var(--line-2); border-radius: 12px; }
+
+/* ---------- misc ---------- */
+.muted { color: var(--ink-faint); }
+.right { text-align: right; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.chart-svg { width: 100%; height: auto; display: block; }
+.divider { height: 1px; background: var(--line); margin: 16px 0; }
+.empty { text-align: center; color: var(--ink-faint); padding: 40px 20px; font-size: .9rem; }
+.grid-2 { display: grid; gap: 14px; }
+@media (min-width: 780px) { .grid-2 { grid-template-columns: 1fr 1fr; } .stat-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--tab-h) + 18px); transform: translateX(-50%) translateY(20px);
+  background: var(--panel-solid); border: 1px solid var(--line-2); color: #fff; padding: 12px 18px;
+  border-radius: 13px; font-size: .88rem; font-weight: 600; box-shadow: var(--shadow); z-index: 100;
+  opacity: 0; transition: .3s; pointer-events: none; max-width: 90%;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- modal sheet ---------- */
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(3,8,20,.6); backdrop-filter: blur(3px); z-index: 60; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+.sheet { width: 100%; max-width: 560px; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 22px 22px 0 0; padding: 10px 20px calc(env(safe-area-inset-bottom,0px) + 24px); max-height: 88vh; overflow-y: auto; transform: translateY(30px); transition: transform .25s; }
+.sheet-backdrop.show .sheet { transform: none; }
+.sheet-grip { width: 42px; height: 5px; border-radius: 3px; background: var(--line-2); margin: 8px auto 16px; }
+@media (min-width: 780px) { .sheet-backdrop { align-items: center; } .sheet { border-radius: 22px; } }
+
+/* artifact host: keep the app centered like a device on wide screens */
+body { min-height:100vh; }
+</style>
+<div id="app"></div>
+<script>
+/* ==========================================================================
+   TradeShield — PTC Client App · demo data (aligned to the Client Guide)
+   Model: an adviser/PTC operator oversees client companies. Each company has a
+   register of recorded operating liabilities that move through the lifecycle
+   Recorded → Approved → Funded → Paid → Reconciled, plus named actions.
+   In production this comes from your backend + Xero/QuickBooks sync.
+   ========================================================================== */
+window.TS_SEED = {
+  account: {
+    firm: "Meridian Advisory",
+    user: "Kevin Morris",
+    initials: "KM",
+    role: "Client Director",
+    plan: "Professional",
+    email: "kevin@meridianadvisory.co.uk"
+  },
+
+  /* liability lifecycle — the operational pipeline (Client Guide p.6) */
+  stages: [
+    { key: "recorded",   name: "Recorded",   color: "#56a8ff", desc: "Liability & evidence entered" },
+    { key: "approved",   name: "Approved",   color: "#8a7bff", desc: "Amount & due date confirmed" },
+    { key: "funded",     name: "Funded",     color: "#29c2d8", desc: "Client allocation received" },
+    { key: "paid",       name: "Paid",       color: "#3b82f6", desc: "Payment reference attached" },
+    { key: "reconciled", name: "Reconciled", color: "#35d29a", desc: "Record closed / carried forward" }
+  ],
+
+  /* the six control domains (Client Guide p.3) */
+  domains: [
+    { key: "HMRC",    name: "HMRC",    desc: "VAT, PAYE, NIC & Corporation Tax",     color: "#3b82f6" },
+    { key: "People",  name: "People",  desc: "Staff wages, benefits & employment",   color: "#35d29a" },
+    { key: "Supply",  name: "Supply",  desc: "Suppliers, trade creditors, purchases",color: "#f0b64a" },
+    { key: "Risk",    name: "Risk",    desc: "Insurance, professional fees & cover",  color: "#8a7bff" }
+  ],
+
+  /* named action types (Client Guide p.7) */
+  actionTypes: {
+    approval: { label: "Approval", color: "#ff6b5e" },
+    document: { label: "Document", color: "#f0b64a" },
+    decision: { label: "Decision", color: "#29c2d8" },
+    review:   { label: "Review",   color: "#8a7bff" }
+  },
+
+  companies: [
+    {
+      id: "c1", name: "Northgate Fabrication Ltd", sector: "Manufacturing",
+      logoColor: "linear-gradient(135deg,#3b82f6,#1e40af)", risk: "high", obligor: "MTC",
+      // headline figures mirror the Client Guide dashboard exactly
+      totalLiabilities: 765240, next7: 54540, overdue: 20500, fundingGap: 250240,
+      allocatedPct: 67, allocated: 515000, paidReserved: 220000,
+      accounting: { provider: "Xero", status: "connected", lastSync: "2 min ago", entity: "Northgate Fabrication Ltd" },
+      liabilities: [
+        { id:"l1", name:"Trade finance facility", domain:"Supply", category:"Trade finance", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-31", amount:400000, funded:0, stage:"recorded", status:"soon",
+          evidence:[{type:"PDF",label:"Facility statement"}],
+          audit:[{t:"2026-08-01 09:14",who:"Finance user",title:"Record created",desc:"£400,000 facility maturing 31 Aug."}] },
+        { id:"l2", name:"PAYE & National Insurance", domain:"HMRC", category:"PAYE & NIC", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-22", amount:100200, funded:40000, stage:"funded", status:"part",
+          evidence:[{type:"PDF",label:"HMRC PAYE notice"},{type:"APP",label:"Funding approval"}],
+          audit:[
+            {t:"2026-08-02 10:02",who:"PTC operations",title:"Evidence uploaded",desc:"HMRC PAYE notice attached."},
+            {t:"2026-08-05 11:27",who:"Client director",title:"Amount approved",desc:"£100,200 approved."},
+            {t:"2026-08-06 14:45",who:"Finance user",title:"Part funding allocated",desc:"£40,000 allocated on account."} ] },
+        { id:"l3", name:"VAT return Q2", domain:"HMRC", category:"VAT", obligor:"MTC", period:"Q2 2026",
+          due:"2026-08-07", amount:54540, funded:0, stage:"approved", status:"due",
+          evidence:[{type:"PDF",label:"HMRC VAT notice"}],
+          audit:[
+            {t:"2026-07-28 09:14",who:"Finance user",title:"Record created",desc:"VAT liability £54,540 from Xero sync."},
+            {t:"2026-08-02 10:20",who:"PTC operations",title:"Evidence uploaded",desc:"HMRC VAT notice attached."},
+            {t:"2026-08-04 11:05",who:"Client director",title:"Amount approved",desc:"Awaiting funding request approval."} ] },
+        { id:"l4", name:"Staff wages — August", domain:"People", category:"Staff wages", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-28", amount:170000, funded:170000, stage:"funded", status:"funded",
+          evidence:[{type:"APP",label:"Payroll approval"}],
+          audit:[
+            {t:"2026-08-03 09:30",who:"Finance user",title:"Record created",desc:"August payroll recorded."},
+            {t:"2026-08-08 15:10",who:"Finance user",title:"Funding allocated",desc:"£170,000 reserved for payroll."} ] },
+        { id:"l5", name:"Professional fees", domain:"Risk", category:"Professional fees", obligor:"MTC", period:"Jul 2026",
+          due:"2026-07-31", amount:20500, funded:0, stage:"recorded", status:"overdue",
+          evidence:[],
+          audit:[{t:"2026-08-06 08:50",who:"PTC operations",title:"Record created",desc:"£20,500 overdue — supporting invoice required."}] },
+        { id:"l6", name:"Trade suppliers", domain:"Supply", category:"Suppliers", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-31", amount:20000, funded:0, stage:"recorded", status:"soon",
+          evidence:[],
+          audit:[{t:"2026-08-04 12:00",who:"Finance user",title:"Record created",desc:"Supplier balance ageing — early flag."}] }
+      ],
+      actions: [
+        { id:"a1", type:"approval", title:"Approve the VAT funding request", ref:"VAT return Q2", refId:"l3", due:"2026-08-07", priority:"high" },
+        { id:"a2", type:"document", title:"Upload the supporting supplier invoice", ref:"Trade suppliers", refId:"l6", due:"2026-08-16", priority:"medium" },
+        { id:"a3", type:"decision", title:"Confirm the proposed finance repayment", ref:"Trade finance facility", refId:"l1", due:"2026-08-24", priority:"high" },
+        { id:"a4", type:"review",   title:"Resolve the overdue professional fee", ref:"Professional fees", refId:"l5", due:"2026-08-01", priority:"high", escalated:true }
+      ]
+    },
+    {
+      id: "c2", name: "Harbour Logistics Group", sector: "Transport & Storage",
+      logoColor: "linear-gradient(135deg,#29c2d8,#1c93a6)", risk: "medium", obligor:"MTC",
+      totalLiabilities: 412300, next7: 18000, overdue: 0, fundingGap: 78400,
+      allocatedPct: 81, allocated: 333900, paidReserved: 234000,
+      accounting: { provider: "QuickBooks", status: "connected", lastSync: "18 min ago", entity: "Harbour Logistics Group Ltd" },
+      liabilities: [
+        { id:"h_l1", name:"VAT return Q2", domain:"HMRC", category:"VAT", obligor:"MTC", period:"Q2 2026",
+          due:"2026-08-07", amount:88300, funded:88300, stage:"paid", status:"funded",
+          evidence:[{type:"PDF",label:"HMRC VAT notice"},{type:"REF",label:"Bank payment"}],
+          audit:[{t:"2026-08-07 14:00",who:"PTC operations",title:"Payment recorded",desc:"VAT paid — reference attached."}] },
+        { id:"h_l2", name:"Fleet finance", domain:"Supply", category:"Trade finance", obligor:"MTC", period:"Sep 2026",
+          due:"2026-09-15", amount:210000, funded:150000, stage:"funded", status:"part",
+          evidence:[{type:"APP",label:"Restructure approval"}],
+          audit:[{t:"2026-08-10 11:00",who:"Client director",title:"Restructure approved",desc:"Revised schedule confirmed."}] },
+        { id:"h_l3", name:"Staff wages", domain:"People", category:"Staff wages", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-28", amount:96000, funded:96000, stage:"funded", status:"funded", evidence:[], audit:[] },
+        { id:"h_l4", name:"Insurance renewal", domain:"Risk", category:"Insurance", obligor:"MTC", period:"Sep 2026",
+          due:"2026-09-01", amount:18000, funded:0, stage:"approved", status:"soon", evidence:[{type:"PDF",label:"Renewal schedule"}], audit:[] }
+      ],
+      actions: [
+        { id:"h_a1", type:"decision", title:"Confirm insurer instalment plan", ref:"Insurance renewal", refId:"h_l4", due:"2026-08-25", priority:"low" },
+        { id:"h_a2", type:"review", title:"Review fleet finance schedule", ref:"Fleet finance", refId:"h_l2", due:"2026-08-30", priority:"medium" }
+      ]
+    },
+    {
+      id: "c3", name: "Bright Interiors Ltd", sector: "Construction & Fit-out",
+      logoColor: "linear-gradient(135deg,#d8b866,#b8963f)", risk: "low", obligor:"MTC",
+      totalLiabilities: 198500, next7: 0, overdue: 0, fundingGap: 0,
+      allocatedPct: 100, allocated: 198500, paidReserved: 198500,
+      accounting: { provider: null, status: "disconnected", lastSync: null, entity: null },
+      liabilities: [
+        { id:"b_l1", name:"VAT return Q2", domain:"HMRC", category:"VAT", obligor:"MTC", period:"Q2 2026",
+          due:"2026-08-07", amount:31500, funded:31500, stage:"reconciled", status:"funded", evidence:[{type:"CLO",label:"Reconciliation note"}], audit:[] },
+        { id:"b_l2", name:"PAYE & NIC", domain:"HMRC", category:"PAYE & NIC", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-22", amount:42000, funded:42000, stage:"paid", status:"funded", evidence:[], audit:[] },
+        { id:"b_l3", name:"Supplier — timber", domain:"Supply", category:"Suppliers", obligor:"MTC", period:"Aug 2026",
+          due:"2026-08-30", amount:25000, funded:25000, stage:"funded", status:"funded", evidence:[], audit:[] }
+      ],
+      actions: []
+    }
+  ]
+};
+
+</script>
+<script>
+/* ==========================================================================
+   TradeShield — PTC Client App (vanilla SPA, PWA / Capacitor-ready)
+   Aligned to the Client Guide: liability lifecycle, Action Centre, evidence &
+   audit, role-based access and compliance boundaries.
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var STORE = "tradeshield.app.v2";
+  var state = load();
+  var ui = { companyId: state.companies[0].id, loggedIn: sget("ts.loggedIn") === "1" };
+
+  function load(){ try { var r = localStorage.getItem(STORE); if (r) return JSON.parse(r); } catch(e){} var s = JSON.parse(JSON.stringify(window.TS_SEED)); save(s); return s; }
+  function save(s){ try { localStorage.setItem(STORE, JSON.stringify(s || state)); } catch(e){} }
+  function sget(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function sset(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+
+  var STAGES = state.stages, DOMAINS = state.domains, ATYPES = state.actionTypes;
+  function company(id){ return state.companies.find(function(c){return c.id===id;}); }
+  function gbp(n){ return "£" + Math.round(n).toLocaleString("en-GB"); }
+  function gbpK(n){ if (n>=1e6) return "£"+(n/1e6).toFixed(n>=1e7?1:2)+"m"; if (n>=1000) return "£"+Math.round(n/1000)+"k"; return "£"+Math.round(n); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function initials(n){ return n.split(/\s+/).slice(0,2).map(function(w){return w[0];}).join("").toUpperCase(); }
+  function fmtDate(d){ return new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short"}); }
+  function stageMeta(k){ return STAGES.find(function(s){return s.key===k;})||STAGES[0]; }
+  function stageIndex(k){ return STAGES.findIndex(function(s){return s.key===k;}); }
+  function domainMeta(k){ return DOMAINS.find(function(d){return d.key===k;})||{color:"#6b7ea6",name:k}; }
+  var STATUS_PILL = { funded:["ok","Funded"], part:["warn","Part funded"], due:["info","Due"], soon:["warn","Due soon"], approved:["teal","Approved"], overdue:["danger","Overdue"], reconciled:["ok","Reconciled"] };
+  var CAT_COLOR = { "VAT":"#3b82f6","PAYE & NIC":"#8a7bff","Corporation Tax":"#ff6b5e","Staff wages":"#35d29a","Suppliers":"#f0b64a","Insurance":"#29c2d8","Trade finance":"#5c6cff","Professional fees":"#c79a3e","Other":"#6b7ea6" };
+  function todayISO(){ return "2026-08-16"; }
+  function daysUntil(d){ return Math.round((new Date(d)-new Date(todayISO()))/86400000); }
+
+  function portfolioTotals(){
+    var t={ liabilities:0, next7:0, overdue:0, gap:0, actions:0, atRisk:0, reconciled:0, records:0 };
+    state.companies.forEach(function(c){
+      t.liabilities+=c.totalLiabilities; t.next7+=c.next7; t.overdue+=c.overdue; t.gap+=c.fundingGap;
+      t.actions += c.actions.length; if (c.risk==="high") t.atRisk++;
+      c.liabilities.forEach(function(l){ t.records++; if (l.stage==="reconciled") t.reconciled++; });
+    });
+    return t;
+  }
+
+  var svgDefs = '<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="tsg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#29c2d8"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs></svg>';
+  function tsMark(cls){
+    return '<svg class="'+(cls||"tsmark")+'" viewBox="0 0 100 110" aria-hidden="true">'
+      + '<defs><linearGradient id="shg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#29c2d8"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>'
+      + '<path d="M50 5 8 22v33c0 29 19 43 42 49 23-6 42-20 42-49V22z" fill="none" stroke="url(#shg)" stroke-width="5"/>'
+      + '<path d="M35 54l11 11 22-24" fill="none" stroke="url(#shg)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  function icon(name){
+    var p={ home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+      actions:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+      chart:'<path d="M4 20V6M4 20h16"/><path d="M8 16l3-4 3 2 4-6"/>',
+      plug:'<path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/>',
+      user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+      bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+      chevron:'<path d="M9 6l6 6-6 6"/>', chevL:'<path d="M15 18l-6-6 6-6"/>',
+      search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>',
+      sync:'<path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
+      shield:'<path d="M12 3l8 4v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7z"/>',
+      arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>', doc:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
+      logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+      check:'<path d="M20 6L9 17l-5-5"/>', clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+      file:'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/>',
+      lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+      alert:'<path d="M12 2l10 18H2z"/><path d="M12 9v5M12 17h.01"/>' };
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(p[name]||"")+'</svg>';
+  }
+
+  var root = document.getElementById("app");
+  function toast(msg){ var t=document.getElementById("toast"); if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);} t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove("show");},2200); }
+
+  /* ======================= ROUTER ======================= */
+  function router(){
+    if (!ui.loggedIn){ renderLogin(); return; }
+    var h = location.hash.replace(/^#\/?/, "") || "portfolio";
+    var parts = h.split("/"), view = parts[0];
+    if (view==="company" && parts[1]){ ui.companyId=parts[1]; renderShell(renderCompany(parts[1]), "portfolio"); }
+    else if (view==="actions"){ renderShell(renderActions(), "actions"); }
+    else if (view==="insights"){ renderShell(renderInsights(), "insights"); }
+    else if (view==="integrations"){ renderShell(renderIntegrations(), "integrations"); }
+    else if (view==="account"){ renderShell(renderAccount(), "account"); }
+    else { renderShell(renderPortfolio(), "portfolio"); }
+    window.scrollTo(0,0);
+  }
+  function renderShell(inner, tab){ root.innerHTML = svgDefs + inner + tabbar(tab); bindTabs(); }
+  function tabbar(active){
+    var tabs=[["portfolio","home","Portfolio"],["actions","actions","Actions"],["insights","chart","Insights"],["integrations","plug","Connect"],["account","user","Account"]];
+    return '<nav class="tabbar">'+tabs.map(function(t){ return '<button data-route="'+t[0]+'" class="'+(t[0]===active?"active":"")+'">'+icon(t[1])+'<span>'+t[2]+'</span></button>'; }).join("")+'</nav>';
+  }
+  function bindTabs(){ root.querySelectorAll(".tabbar button").forEach(function(b){ b.onclick=function(){ location.hash="#/"+b.getAttribute("data-route"); }; }); }
+  function topbar(title, sub, opts){
+    opts=opts||{};
+    var left = opts.back ? '<button class="back-btn" id="tb-back">'+icon("chevL")+' Back</button>' : '<div>'+tsMark()+'</div>';
+    var badge = totalOpenActions();
+    var bell = '<button class="icon-btn" id="tb-bell" style="position:relative">'+icon("bell")+(badge?'<span style="position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--danger);color:#fff;font-size:.6rem;font-weight:700;display:grid;place-items:center">'+badge+'</span>':'')+'</button>';
+    return '<header class="topbar"><div style="display:flex;align-items:center;gap:12px">'+left
+      + '<div><div class="tb-title">'+esc(title)+'</div>'+(sub?'<div class="tb-sub">'+esc(sub)+'</div>':'')+'</div></div>'
+      + '<div class="tb-right">'+bell+'<div class="avatar">'+esc(state.account.initials)+'</div></div></header>';
+  }
+  function totalOpenActions(){ return state.companies.reduce(function(a,c){return a+c.actions.length;},0); }
+  function bindTop(){
+    var b=document.getElementById("tb-back"); if(b) b.onclick=function(){ history.length>1?history.back():(location.hash="#/portfolio"); };
+    var bell=document.getElementById("tb-bell"); if(bell) bell.onclick=function(){ location.hash="#/actions"; };
+  }
+
+  /* ======================= LOGIN ======================= */
+  function renderLogin(){
+    root.innerHTML = svgDefs + '<div class="login-screen">'
+      + '<div class="login-hero">'+tsMark("lh-mark")
+      + '<h1><span class="t">TRADE</span> <span class="s">SHIELD</span></h1>'
+      + '<p>Live Liability Control. Every liability — visible and controlled.</p></div>'
+      + '<div class="field"><label>Work email</label><input id="lg-email" type="email" value="kevin@meridianadvisory.co.uk"></div>'
+      + '<div class="field"><label>Password</label><input id="lg-pass" type="password" value="demo"></div>'
+      + '<button class="btn btn-primary btn-block" id="lg-btn">Sign in</button>'
+      + '<div class="login-alt">Authorised users only · <a href="#" id="lg-alt">Request access</a></div>'
+      + '<div class="demo-note">Demo build · any credentials sign you in. Live auth, roles &amp; billing connect to your backend.</div></div>';
+    document.getElementById("lg-btn").onclick = doLogin;
+    document.getElementById("lg-alt").onclick = function(e){ e.preventDefault(); doLogin(); };
+    document.getElementById("lg-pass").onkeydown = function(e){ if(e.key==="Enter") doLogin(); };
+  }
+  function doLogin(){ ui.loggedIn=true; sset("ts.loggedIn","1"); location.hash="#/portfolio"; router(); toast("Welcome back, "+state.account.user.split(" ")[0]); }
+
+  /* ======================= PORTFOLIO ======================= */
+  function renderPortfolio(){
+    var t = portfolioTotals();
+    var s = topbar("Portfolio", state.account.firm+" · "+state.companies.length+" clients");
+    var out = '<div class="screen active">';
+    out += '<div class="section-label">Portfolio position</div>';
+    out += '<div class="stat-grid">'
+      + stat("Total recorded", gbpK(t.liabilities), "all clients", "accent", icon("shield"))
+      + stat("Due next 7 days", gbpK(t.next7), "funding priority", "")
+      + stat("Overdue", gbpK(t.overdue), t.overdue>0?"needs action":"all current", t.overdue>0?"danger":"")
+      + stat("Funding gap", gbpK(t.gap), "projected", "gold")
+      + '</div>';
+    out += '<div class="section-label" style="display:flex;justify-content:space-between;align-items:center">Clients <a href="#/actions" id="pf-act" style="font-size:.72rem">'+t.actions+' open actions</a></div>';
+    out += '<div class="search">'+icon("search")+'<input id="pf-search" placeholder="Search clients…"></div>';
+    out += '<div class="row-list" id="pf-list">'+state.companies.map(companyRow).join("")+'</div>';
+    out += '</div>';
+    setTimeout(function(){
+      bindTop();
+      var pa=document.getElementById("pf-act"); if(pa) pa.onclick=function(e){e.preventDefault();location.hash="#/actions";};
+      var inp=document.getElementById("pf-search");
+      if(inp) inp.oninput=function(){ var q=inp.value.toLowerCase();
+        document.getElementById("pf-list").innerHTML = state.companies.filter(function(c){return (c.name+" "+c.sector).toLowerCase().indexOf(q)>-1;}).map(companyRow).join("")||'<div class="empty">No clients match.</div>';
+        bindCompanyRows(); };
+      bindCompanyRows();
+    },0);
+    return s+out;
+  }
+  function companyRow(c){
+    var acts = c.actions.length;
+    return '<button class="list-row" data-company="'+c.id+'">'
+      + '<span class="lr-logo" style="background:'+c.logoColor+'">'+initials(c.name)+'</span>'
+      + '<span class="lr-main"><span class="lr-name">'+esc(c.name)+'</span>'
+      + '<span class="lr-meta"><span class="risk-dot risk-'+c.risk+'"></span> '+esc(c.sector)+' · '+acts+' action'+(acts===1?"":"s")+'</span></span>'
+      + '<span class="lr-right"><span class="lr-fig">'+gbpK(c.totalLiabilities)+'</span>'
+      + '<div class="lr-meta">'+(c.overdue>0?'<span style="color:var(--danger)">'+gbpK(c.overdue)+' overdue</span>':'<span style="color:var(--ok)">on track</span>')+'</div></span>'
+      + '<span class="chev">'+icon("chevron")+'</span></button>';
+  }
+  function bindCompanyRows(){ root.querySelectorAll("[data-company]").forEach(function(b){ b.onclick=function(){ location.hash="#/company/"+b.getAttribute("data-company"); }; }); }
+  function stat(label,val,delta,cls,ic){ return '<div class="stat '+(cls||"")+'"><div class="s-label">'+(ic?'<span style="width:14px;height:14px;color:var(--teal)">'+ic+'</span>':'')+label+'</div><div class="s-val">'+val+'</div>'+(delta?'<div class="s-delta muted">'+delta+'</div>':'')+'</div>'; }
+
+  /* ======================= COMPANY (Financial position) ======================= */
+  function renderCompany(id){
+    var c = company(id); if(!c) return '<div class="empty">Client not found.</div>';
+    var s = topbar(c.name, c.sector, {back:true});
+    var out = '<div class="screen active">';
+    out += '<div class="stat-grid">'
+      + stat("Total recorded", gbp(c.totalLiabilities), c.liabilities.length+" records", "accent")
+      + stat("Due next 7 days", gbp(c.next7), "priority", "")
+      + stat("Overdue", gbp(c.overdue), c.overdue>0?"action needed":"none", c.overdue>0?"danger":"")
+      + stat("Funding gap", gbp(c.fundingGap), "projected", "gold")
+      + '</div>';
+
+    out += '<div class="grid-2" style="margin-top:14px">';
+    out += '<div class="card"><div class="card-head"><div><h2>Funding position</h2><div class="sub">Allocation vs recorded liabilities</div></div></div>'
+      + donut(c.allocatedPct)
+      + fundLine("#29c2d8","Funds allocated",gbp(c.allocated))
+      + fundLine("#d8b866","Paid or reserved",gbp(c.paidReserved))
+      + fundLine("#ff6b5e","Projected shortfall",gbp(c.fundingGap))
+      + '</div>';
+    out += '<div class="card"><div class="card-head"><div><h2>Accounting feed</h2><div class="sub">Source of liability data</div></div></div>'+accountingBlock(c)+'</div>';
+    out += '</div>';
+
+    // actions need attention
+    if (c.actions.length){
+      out += '<div class="section-label" style="display:flex;justify-content:space-between;align-items:center">Actions need attention <a href="#/actions" id="co-act" style="font-size:.72rem">View all '+icon("arrow").replace('stroke-width="2"','stroke-width="2" style="width:11px;height:11px;display:inline;vertical-align:-1px"')+'</a></div>';
+      out += '<div class="card" style="padding:8px 14px">'+c.actions.slice(0,3).map(function(a){return actionRow(a,c);}).join("")+'</div>';
+    }
+
+    // liability register
+    out += '<div class="section-label">Liability register</div><div class="card" style="padding:6px 14px">';
+    out += c.liabilities.slice().sort(function(a,b){return new Date(a.due)-new Date(b.due);}).map(function(l){ return liabRow(l, c.id); }).join("");
+    out += '</div>';
+
+    // reports
+    out += '<div class="section-label">Client outputs</div><div class="card"><div class="grid-2">'
+      + reportBtn("Board report") + reportBtn("Liability export") + reportBtn("Funding report") + reportBtn("Evidence pack")
+      + '</div></div>';
+    out += '</div>';
+
+    setTimeout(function(){
+      bindTop();
+      var ca=document.getElementById("co-act"); if(ca) ca.onclick=function(e){e.preventDefault();location.hash="#/actions";};
+      root.querySelectorAll("[data-liab]").forEach(function(b){ b.onclick=function(){ openLiabSheet(c.id, b.getAttribute("data-liab")); }; });
+      root.querySelectorAll("[data-action]").forEach(function(b){ b.onclick=function(){ openActionSheet(c.id, b.getAttribute("data-action")); }; });
+      root.querySelectorAll("[data-report]").forEach(function(b){ b.onclick=function(){ exportReport(c, b.getAttribute("data-report")); }; });
+      var cb=root.querySelector("[data-connect]"); if(cb) cb.onclick=function(){ openConnectSheet(c.id); };
+    },0);
+    return s+out;
+  }
+  function fundLine(col,label,amt){ return '<div class="flex-between" style="font-size:.86rem;padding:5px 0"><span class="lr-meta" style="display:flex;align-items:center;gap:8px;color:var(--ink-soft)"><span class="risk-dot" style="background:'+col+'"></span>'+label+'</span><b>'+amt+'</b></div>'; }
+  function reportBtn(name){ return '<button class="btn btn-ghost btn-sm" data-report="'+esc(name)+'" style="justify-content:flex-start;gap:9px">'+icon("doc").replace('stroke-width="2"','stroke-width="2" style="width:15px;height:15px"')+esc(name)+'</button>'; }
+
+  function accountingBlock(c){
+    var a=c.accounting;
+    if(a.status==="connected"){
+      var col=a.provider==="Xero"?"linear-gradient(135deg,#13b5ea,#0a7bb5)":"linear-gradient(135deg,#2ca01c,#1a6b12)";
+      return '<div class="integration"><div class="int-logo" style="background:'+col+'">'+(a.provider==="Xero"?"xero":"qb")+'</div>'
+        + '<div class="int-main"><div class="int-name">'+a.provider+'</div><div class="int-status"><span class="risk-dot risk-low"></span> Connected · synced '+esc(a.lastSync)+'</div></div>'
+        + '<button class="icon-btn" data-sync>'+icon("sync")+'</button></div><div class="muted" style="font-size:.78rem;margin-top:10px">Entity: '+esc(a.entity)+'</div>';
+    }
+    return '<div class="integration"><div class="int-logo" style="background:var(--panel-2)">?</div><div class="int-main"><div class="int-name">Not connected</div><div class="int-status">Add Xero or QuickBooks to auto-sync</div></div></div>'
+      + '<button class="btn btn-primary btn-block btn-sm" style="margin-top:12px" data-connect>Connect accounting</button>';
+  }
+
+  function liabRow(l, cid){
+    var p = STATUS_PILL[l.status]||["neutral",l.status];
+    var dm = domainMeta(l.domain);
+    return '<button class="list-row" data-liab="'+l.id+'" style="border:none;background:none;padding:11px 0;border-bottom:1px solid var(--line);border-radius:0">'
+      + '<span class="lr-logo" style="width:34px;height:34px;border-radius:9px;font-size:.7rem;background:'+(CAT_COLOR[l.category]||dm.color)+'">'+l.category[0]+'</span>'
+      + '<span class="lr-main"><span class="lr-name" style="font-size:.9rem">'+esc(l.name)+'</span>'
+      + '<span class="lr-meta">Due '+fmtDate(l.due)+' · '+esc(l.obligor)+' · '+stageMeta(l.stage).name+'</span></span>'
+      + '<span class="lr-right"><span class="lr-fig" style="font-size:.9rem">'+gbp(l.amount)+'</span><div style="margin-top:4px"><span class="pill '+p[0]+'">'+p[1]+'</span></div></span></button>';
+  }
+
+  function donut(pct){
+    var C=2*Math.PI*44;
+    return '<div class="donut-wrap"><svg class="donut" viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="44"/><circle class="val" cx="50" cy="50" r="44" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-pct/100))+'"/></svg><div class="donut-center"><b>'+pct+'%</b><span>Allocated</span></div></div>';
+  }
+
+  /* ======================= ACTION CENTRE ======================= */
+  function renderActions(){
+    var s = topbar("Action Centre", "What needs attention");
+    var out = '<div class="screen active">';
+    // gather all actions with company ref
+    var all=[]; state.companies.forEach(function(c){ c.actions.forEach(function(a){ all.push({a:a, c:c}); }); });
+    var prio = {high:0,medium:1,low:2};
+    all.sort(function(x,y){ return (prio[x.a.priority]-prio[y.a.priority]) || (new Date(x.a.due)-new Date(y.a.due)); });
+
+    // summary by type
+    var counts={approval:0,document:0,decision:0,review:0}; all.forEach(function(x){counts[x.a.type]=(counts[x.a.type]||0)+1;});
+    out += '<div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">'
+      + Object.keys(ATYPES).map(function(k){ return '<div class="stat" style="border-color:'+ATYPES[k].color+'44"><div class="s-label" style="color:'+ATYPES[k].color+'">'+ATYPES[k].label+'</div><div class="s-val" style="font-size:1.3rem">'+(counts[k]||0)+'</div></div>'; }).join("")
+      + '</div>';
+
+    out += '<div class="section-label">Prioritised</div>';
+    if(!all.length) out += '<div class="empty">No open actions. Everything is under control.</div>';
+    else { out += '<div class="card" style="padding:6px 14px">' + all.map(function(x){ return actionRow(x.a, x.c); }).join("") + '</div>'; }
+
+    out += '<div class="muted" style="font-size:.76rem;margin-top:16px;padding:0 4px">Each action carries a deadline, priority, evidence requirement and completion history, and routes to the correct authorised person.</div>';
+    out += '</div>';
+    setTimeout(function(){
+      bindTop();
+      root.querySelectorAll("[data-action]").forEach(function(b){ b.onclick=function(){ openActionSheet(b.getAttribute("data-cid"), b.getAttribute("data-action")); }; });
+    },0);
+    return s+out;
+  }
+  function actionRow(a, c){
+    var at = ATYPES[a.type]||{label:a.type,color:"#6b7ea6"};
+    var pr = a.priority==="high"?["danger","High"]:a.priority==="medium"?["warn","Med"]:["neutral","Low"];
+    var dueTxt = a.escalated ? "Escalated" : (daysUntil(a.due)<0?"Overdue":daysUntil(a.due)===0?"Due today":"Due "+fmtDate(a.due));
+    return '<button class="list-row" data-action="'+a.id+'" data-cid="'+c.id+'" style="border:none;background:none;padding:11px 0;border-bottom:1px solid var(--line);border-radius:0">'
+      + '<span class="lr-logo" style="width:34px;height:34px;border-radius:9px;background:'+at.color+'22;color:'+at.color+';border:1px solid '+at.color+'55">'+icon(a.type==="approval"?"check":a.type==="document"?"file":a.type==="decision"?"shield":"alert")+'</span>'
+      + '<span class="lr-main"><span class="lr-name" style="font-size:.9rem">'+esc(a.title)+'</span>'
+      + '<span class="lr-meta">'+esc(c.name.split(" ")[0])+' · '+esc(a.ref)+'</span></span>'
+      + '<span class="lr-right"><span class="pill '+pr[0]+'">'+pr[1]+'</span><div class="lr-meta" style="margin-top:4px;color:'+(a.escalated||daysUntil(a.due)<0?"var(--danger)":"var(--ink-faint)")+'">'+dueTxt+'</div></span></button>';
+  }
+
+  function openActionSheet(cid, aid){
+    var c=company(cid); var a=c.actions.find(function(x){return x.id===aid;}); if(!a) return;
+    var at=ATYPES[a.type]||{label:a.type,color:"#6b7ea6"};
+    var verb = {approval:"Approve",document:"Upload evidence",decision:"Confirm decision",review:"Resolve"}[a.type]||"Complete";
+    var body='<div class="sheet-grip"></div>'
+      + '<span class="pill" style="background:'+at.color+'1f;color:'+at.color+';border-color:'+at.color+'55">'+at.label+'</span>'
+      + '<h2 style="margin:10px 0 4px">'+esc(a.title)+'</h2>'
+      + '<div class="muted" style="font-size:.86rem">'+esc(c.name)+' · '+esc(a.ref)+'</div>'
+      + '<div class="flex-between" style="margin:16px 0"><div><div class="muted" style="font-size:.74rem">Due</div><b>'+(a.escalated?"Escalated":fmtDate(a.due))+'</b></div>'
+      + '<div class="right"><div class="muted" style="font-size:.74rem">Priority</div><b style="text-transform:capitalize">'+esc(a.priority)+'</b></div></div>'
+      + '<button class="btn btn-primary btn-block" id="act-do">'+verb+'</button>'
+      + '<button class="btn btn-ghost btn-block" id="act-open" style="margin-top:10px">Open linked liability</button>';
+    openSheet(body);
+    document.getElementById("act-do").onclick=function(){
+      // resolve action; if linked, advance liability one stage
+      var lref = a.refId ? c.liabilities.find(function(l){return l.id===a.refId;}) : null;
+      if(lref){ var i=stageIndex(lref.stage); if(i<STAGES.length-1){ lref.stage=STAGES[i+1].key; lref.audit=lref.audit||[]; lref.audit.push({t:todayISO()+" "+nowTime(),who:state.account.role,title:STAGES[i+1].name,desc:a.title+" completed."}); if(lref.stage==="funded"){lref.funded=lref.amount;lref.status="funded";} if(lref.stage==="reconciled")lref.status="reconciled"; } }
+      c.actions = c.actions.filter(function(x){return x.id!==a.id;});
+      save(); closeSheet(); toast("Action completed"); router();
+    };
+    document.getElementById("act-open").onclick=function(){ closeSheet(); if(a.refId) openLiabSheet(cid, a.refId); };
+  }
+  function nowTime(){ return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}); }
+
+  /* ======================= LIABILITY RECORD SHEET ======================= */
+  function openLiabSheet(cid, lid){
+    var c=company(cid); var l=c.liabilities.find(function(x){return x.id===lid;}); if(!l) return;
+    var idx=stageIndex(l.stage);
+    var track='<div class="stage-track">'+STAGES.map(function(st,i){ var cls=i<idx?"done":i===idx?"current":""; return '<div class="st-seg '+cls+'" title="'+st.name+'"></div>'; }).join("")+'</div>';
+    var stagesLabels = '<div class="flex-between" style="font-size:.7rem;color:var(--ink-faint);margin-top:4px"><span>'+STAGES[0].name+'</span><span style="color:'+stageMeta(l.stage).color+';font-weight:700">'+stageMeta(l.stage).name+'</span><span>'+STAGES[STAGES.length-1].name+'</span></div>';
+    var p=STATUS_PILL[l.status]||["neutral",l.status];
+
+    var body='<div class="sheet-grip"></div>'
+      + '<div class="flex-between"><div><h2 style="margin:0">'+esc(l.name)+'</h2><div class="muted" style="font-size:.82rem">'+esc(l.category)+' · '+esc(l.domain)+' · '+esc(l.period)+'</div></div>'
+      + '<div class="right"><div style="font-size:1.4rem;font-weight:800">'+gbp(l.amount)+'</div><span class="pill '+p[0]+'">'+p[1]+'</span></div></div>'
+      + '<div class="card" style="margin-top:14px;background:var(--panel-2)"><div class="flex-between" style="font-size:.84rem"><span class="muted">Legal obligor</span><b>'+esc(l.obligor)+'</b></div>'
+      + '<div class="flex-between" style="font-size:.84rem;margin-top:6px"><span class="muted">Due date</span><b>'+fmtDate(l.due)+'</b></div>'
+      + '<div class="flex-between" style="font-size:.84rem;margin-top:6px"><span class="muted">Paid / reserved</span><b>'+gbp(l.funded)+' of '+gbp(l.amount)+'</b></div></div>'
+      + '<div class="section-label" style="margin-top:16px">Lifecycle</div>'+track+stagesLabels;
+
+    if(l.stage!=="reconciled"){
+      body += '<button class="btn btn-primary btn-block" style="margin-top:14px" id="liab-adv">Advance to '+esc(STAGES[Math.min(idx+1,STAGES.length-1)].name)+'</button>';
+    } else { body += '<div style="margin-top:14px"><span class="pill ok">'+icon("check").replace('stroke-width="2"','stroke-width="2" style="width:13px;height:13px"')+' Reconciled — record closed</span></div>'; }
+
+    // evidence
+    body += '<div class="section-label" style="margin-top:18px">Evidence</div>';
+    if((l.evidence||[]).length){
+      body += '<div class="row-list">'+l.evidence.map(function(e){ return '<div class="list-row" style="cursor:default"><span class="lr-logo" style="width:38px;height:38px;border-radius:10px;background:var(--panel-2);color:var(--teal);font-size:.62rem">'+esc(e.type)+'</span><span class="lr-main"><span class="lr-name" style="font-size:.9rem">'+esc(e.label)+'</span><span class="lr-meta">Time-stamped &amp; linked</span></span></div>'; }).join("")+'</div>';
+    } else { body += '<div class="muted" style="font-size:.84rem;padding:4px 2px">No evidence attached yet.</div>'; }
+
+    // audit history
+    body += '<div class="section-label" style="margin-top:18px">Audit history</div>';
+    if((l.audit||[]).length){
+      body += '<ul class="timeline">'+l.audit.slice().reverse().map(function(e){ return '<li><span class="tl-node teal"></span><div class="tl-title">'+esc(e.title)+'</div><div class="tl-meta">'+esc(e.t)+' · '+esc(e.who)+'</div><div class="tl-desc">'+esc(e.desc)+'</div></li>'; }).join("")+'</ul>';
+    } else { body += '<div class="muted" style="font-size:.84rem;padding:4px 2px">No history recorded.</div>'; }
+
+    openSheet(body);
+    var adv=document.getElementById("liab-adv");
+    if(adv) adv.onclick=function(){
+      var ni=Math.min(idx+1,STAGES.length-1); l.stage=STAGES[ni].key; l.audit=l.audit||[];
+      l.audit.push({t:todayISO()+" "+nowTime(),who:state.account.role,title:STAGES[ni].name,desc:"Advanced to "+STAGES[ni].name+"."});
+      if(l.stage==="funded"){ l.funded=l.amount; l.status="funded"; }
+      if(l.stage==="reconciled") l.status="reconciled";
+      save(); closeSheet(); toast("Moved to "+STAGES[ni].name); router();
+    };
+  }
+
+  /* ======================= CONNECT ======================= */
+  function openConnectSheet(cid){
+    var body='<div class="sheet-grip"></div><h2>Connect accounting</h2><p class="muted">Sync liabilities automatically. TradeShield reads bills, tax and payroll data — never moves your money.</p>'
+      + connectOption("Xero","linear-gradient(135deg,#13b5ea,#0a7bb5)","xero")
+      + connectOption("QuickBooks","linear-gradient(135deg,#2ca01c,#1a6b12)","qb")
+      + '<div class="demo-note" style="margin-top:16px">Demo connect simulates the OAuth handshake &amp; first sync. Live mode uses your Xero/QuickBooks developer app via your backend.</div>';
+    openSheet(body);
+    document.querySelectorAll("[data-provider]").forEach(function(b){ b.onclick=function(){ simulateConnect(cid, b.getAttribute("data-provider")); }; });
+  }
+  function connectOption(name,col,tag){ return '<button class="card" data-provider="'+name+'" style="width:100%;text-align:left;display:flex;align-items:center;gap:14px;margin-top:12px"><span class="int-logo" style="background:'+col+'">'+tag+'</span><span style="flex:1"><span class="int-name" style="display:block">'+name+'</span><span class="muted" style="font-size:.8rem">Connect via secure OAuth</span></span><span class="pill teal">Connect</span></button>'; }
+  function simulateConnect(cid,provider){ var c=company(cid); closeSheet(); toast("Redirecting to "+provider+"…"); setTimeout(function(){ c.accounting={provider:provider,status:"connected",lastSync:"just now",entity:c.name}; save(); toast(provider+" connected — liabilities synced"); router(); },1100); }
+
+  /* ======================= INSIGHTS ======================= */
+  function renderInsights(){
+    var t=portfolioTotals();
+    var s=topbar("Insights","Portfolio analytics");
+    var out='<div class="screen active">';
+    out += '<div class="stat-grid">'
+      + stat("Reconciled", t.reconciled+"/"+t.records, "records closed", "accent")
+      + stat("Open actions", t.actions+"", "across clients", "")
+      + stat("Clients at risk", t.atRisk+"", "high-risk", t.atRisk?"danger":"")
+      + stat("Avg allocation", Math.round(state.companies.reduce(function(a,c){return a+c.allocatedPct;},0)/state.companies.length)+"%", "funding", "gold")
+      + '</div>';
+
+    // lifecycle distribution
+    var life={}; STAGES.forEach(function(s){life[s.key]=0;});
+    state.companies.forEach(function(c){ c.liabilities.forEach(function(l){ life[l.stage]=(life[l.stage]||0)+1; }); });
+    var lmax=Math.max.apply(null,STAGES.map(function(s){return life[s.key];}))||1;
+    out += '<div class="section-label">Liability lifecycle (all clients)</div><div class="card">'
+      + STAGES.map(function(s){ return '<div style="margin-bottom:12px"><div class="flex-between" style="font-size:.82rem;margin-bottom:5px"><span><span class="risk-dot" style="background:'+s.color+'"></span> '+s.name+'</span><b>'+life[s.key]+'</b></div><div class="meter"><span style="width:'+(life[s.key]/lmax*100)+'%;background:'+s.color+'"></span></div></div>'; }).join("")+'</div>';
+
+    // by domain
+    var dom={}; DOMAINS.forEach(function(d){dom[d.key]=0;});
+    state.companies.forEach(function(c){ c.liabilities.forEach(function(l){ dom[l.domain]=(dom[l.domain]||0)+l.amount; }); });
+    var dmax=Math.max.apply(null,DOMAINS.map(function(d){return dom[d.key];}))||1;
+    out += '<div class="section-label">Liabilities by domain</div><div class="card">'
+      + DOMAINS.map(function(d){ return '<div style="margin-bottom:12px"><div class="flex-between" style="font-size:.82rem;margin-bottom:5px"><span><span class="risk-dot" style="background:'+d.color+'"></span> '+d.name+' <span class="muted" style="font-size:.72rem">'+d.desc+'</span></span><b>'+gbpK(dom[d.key])+'</b></div><div class="meter"><span style="width:'+(dom[d.key]/dmax*100)+'%;background:'+d.color+'"></span></div></div>'; }).join("")+'</div>';
+
+    out += '<div class="section-label">Funding trend</div><div class="card">'+trendChart()+'</div>';
+    out += '</div>';
+    setTimeout(bindTop,0);
+    return s+out;
+  }
+  function trendChart(){
+    var pts=[42,55,61,72,79,90], labels=["Mar","Apr","May","Jun","Jul","Aug"];
+    var W=560,H=190,pad={l:14,r:14,t:16,b:28},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b,max=100,step=iw/(pts.length-1);
+    function x(i){return pad.l+i*step;} function y(v){return pad.t+ih-(v/max)*ih;}
+    var line="",area="M"+x(0)+" "+(pad.t+ih),dots="",labs="";
+    pts.forEach(function(p,i){ line+=(i?"L":"M")+x(i)+" "+y(p)+" "; area+=" L"+x(i)+" "+y(p); dots+='<circle cx="'+x(i)+'" cy="'+y(p)+'" r="3.5" fill="#050b1c" stroke="#29c2d8" stroke-width="2.5"/>'; labs+='<text x="'+x(i)+'" y="'+(H-9)+'" text-anchor="middle" font-size="10" fill="#6b7ea6">'+labels[i]+'</text>'; });
+    area+=" L"+x(pts.length-1)+" "+(pad.t+ih)+" Z";
+    return '<svg class="chart-svg" viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="ar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#29c2d8" stop-opacity=".28"/><stop offset="1" stop-color="#29c2d8" stop-opacity="0"/></linearGradient></defs><path d="'+area+'" fill="url(#ar)"/><path d="'+line+'" fill="none" stroke="url(#tsg)" stroke-width="2.5" stroke-linejoin="round"/>'+dots+labs+'<text x="'+pad.l+'" y="12" font-size="10" fill="#6b7ea6">% allocated</text></svg>';
+  }
+
+  /* ======================= INTEGRATIONS ======================= */
+  function renderIntegrations(){
+    var s=topbar("Connect","Accounting integrations");
+    var connected=state.companies.filter(function(c){return c.accounting.status==="connected";});
+    var out='<div class="screen active">';
+    out += '<div class="card"><div class="card-head"><div><h2>Accounting software</h2><div class="sub">Auto-sync liabilities from your ledgers</div></div></div><div class="grid-2">'
+      + providerCard("Xero","linear-gradient(135deg,#13b5ea,#0a7bb5)","xero",state.companies.filter(function(c){return c.accounting.provider==="Xero";}).length)
+      + providerCard("QuickBooks","linear-gradient(135deg,#2ca01c,#1a6b12)","qb",state.companies.filter(function(c){return c.accounting.provider==="QuickBooks";}).length)
+      + '</div></div>';
+    out += '<div class="section-label">Connected clients</div><div class="card">';
+    if(!connected.length) out+='<div class="empty">No clients connected yet.</div>';
+    else out += connected.map(function(c){ var col=c.accounting.provider==="Xero"?"#13b5ea":"#2ca01c";
+      return '<div class="flex-between" style="padding:11px 0;border-bottom:1px solid var(--line)"><div style="display:flex;align-items:center;gap:11px"><span class="lr-logo" style="width:38px;height:38px;background:'+c.logoColor+'">'+initials(c.name)+'</span><div><div style="font-weight:600;color:#fff;font-size:.9rem">'+esc(c.name)+'</div><div class="muted" style="font-size:.76rem"><span style="color:'+col+'">'+c.accounting.provider+'</span> · synced '+esc(c.accounting.lastSync)+'</div></div></div><button class="btn btn-ghost btn-sm" data-resync="'+c.id+'">Sync</button></div>'; }).join("")+'</div>';
+    out += '<div class="section-label">Sync activity</div><div class="card"><div class="sync-log">'
+      + syncRow("2 min ago","Northgate Fabrication — 6 liabilities updated from Xero")
+      + syncRow("18 min ago","Harbour Logistics — VAT marked paid (QuickBooks)")
+      + syncRow("1 hr ago","Northgate Fabrication — new bill: Professional fees £20,500")
+      + syncRow("3 hrs ago","Portfolio sync completed · 2 of 3 clients connected")+'</div></div>';
+    out += '<div class="demo-note" style="margin-top:16px">Live integrations require a Xero/QuickBooks developer app and a backend to hold OAuth tokens securely. The sync engine &amp; data mapping are built — connect your credentials to go live.</div></div>';
+    setTimeout(function(){ bindTop(); root.querySelectorAll("[data-resync]").forEach(function(b){ b.onclick=function(){ var c=company(b.getAttribute("data-resync")); c.accounting.lastSync="just now"; save(); toast("Synced "+c.name); renderShell(renderIntegrations(),"integrations"); }; }); },0);
+    return s+out;
+  }
+  function providerCard(name,col,tag,count){ return '<div class="card" style="background:var(--panel-2)"><div class="integration" style="flex-direction:column;align-items:flex-start;gap:10px"><span class="int-logo" style="background:'+col+'">'+tag+'</span><div><div class="int-name">'+name+'</div><div class="muted" style="font-size:.78rem">'+count+' client'+(count===1?"":"s")+' connected</div></div><span class="pill '+(count?"ok":"neutral")+'">'+(count?"Active":"Available")+'</span></div></div>'; }
+  function syncRow(time,txt){ return '<div class="sl-row"><span class="sl-time">'+time+'</span><span>'+esc(txt)+'</span></div>'; }
+
+  /* ======================= ACCOUNT ======================= */
+  function renderAccount(){
+    var a=state.account;
+    var s=topbar("Account",a.firm);
+    var out='<div class="screen active">';
+    out += '<div class="card" style="text-align:center"><div class="avatar" style="width:72px;height:72px;border-radius:22px;font-size:1.5rem;margin:6px auto 12px">'+esc(a.initials)+'</div><h2 style="margin:0">'+esc(a.user)+'</h2><div class="muted">'+esc(a.email)+'</div><span class="pill teal" style="margin-top:12px">'+esc(a.role)+'</span></div>';
+
+    // roles / access
+    out += '<div class="section-label">Roles &amp; access</div><div class="card">'
+      + roleRow("Client Director","Full position, approvals, exceptions, board reports", a.role==="Client Director")
+      + roleRow("Finance User","Create/update records, upload evidence, reconcile", a.role==="Finance User")
+      + roleRow("PTC Operations","Manage in-scope liabilities, actions, payments", a.role==="PTC Operations")
+      + roleRow("Adviser / Accountant","Optional read-only or selected-record access", a.role==="Adviser / Accountant")
+      + '</div>';
+
+    out += '<div class="section-label">Subscription</div><div class="card">'
+      + '<div class="flex-between" style="padding:6px 0"><span class="muted">Plan</span><b>'+esc(a.plan)+' · £149/mo</b></div>'
+      + '<div class="flex-between" style="padding:6px 0"><span class="muted">Clients</span><b>'+state.companies.length+' of 25</b></div>'
+      + '<div class="flex-between" style="padding:6px 0"><span class="muted">Renews</span><b>1 Sep 2026</b></div>'
+      + '<button class="btn btn-gold btn-block" style="margin-top:12px">Manage billing</button>'
+      + '<div class="muted" style="font-size:.74rem;text-align:center;margin-top:8px">Billing connects to Stripe in production.</div></div>';
+
+    out += '<div class="section-label">Notifications</div><div class="card">'
+      + prefRow("Push alerts","Upcoming dues, funding gaps &amp; overdue items")
+      + prefRow("Weekly digest","Portfolio summary every Monday")
+      + prefRow("Auto-create actions","Raise an action when an exception is detected")
+      + '</div>';
+
+    // compliance boundaries (Client Guide p.13)
+    out += '<div class="section-label">Important information</div><div class="card">'
+      + boundary("No automatic discharge","Recording, allocating or approving a liability does not itself pay, settle or extinguish it.")
+      + boundary("Officer duties remain","The app does not remove statutory duties owed by company officers or replace professional advice.")
+      + boundary("Scope is contractual","Which liabilities are managed is set by the signed agreement and onboarding scope.")
+      + boundary("Exceptions need action","Disputed, unverified or overdue items require evidence and a responsible decision.")
+      + '</div>';
+
+    out += '<button class="btn btn-danger btn-block" style="margin-top:18px" id="logout">'+icon("logout").replace('stroke-width="2"','stroke-width="2" style="width:16px;height:16px"')+' Sign out</button>';
+    out += '<div class="muted" style="text-align:center;font-size:.72rem;margin-top:14px">TradeShield PTC Client App · v1.0 demo · tradeshielduk.org</div></div>';
+    setTimeout(function(){ bindTop();
+      var lo=document.getElementById("logout"); if(lo) lo.onclick=function(){ ui.loggedIn=false; sset("ts.loggedIn","0"); location.hash=""; renderLogin(); };
+      root.querySelectorAll("[data-toggle]").forEach(function(t){ t.onclick=function(){ t.classList.toggle("on"); t.style.background=t.classList.contains("on")?"var(--teal)":"var(--line-2)"; t.querySelector("span").style.right=t.classList.contains("on")?"3px":"auto"; t.querySelector("span").style.left=t.classList.contains("on")?"auto":"3px"; }; });
+    },0);
+    return s+out;
+  }
+  function roleRow(name,sub,active){ return '<div class="flex-between" style="padding:11px 0;border-bottom:1px solid var(--line)"><div style="display:flex;align-items:center;gap:11px"><span class="lr-logo" style="width:34px;height:34px;border-radius:9px;background:var(--panel-2);color:var(--teal);font-size:.7rem">'+initials(name)+'</span><div><div style="font-weight:600;color:#fff;font-size:.88rem">'+name+'</div><div class="muted" style="font-size:.74rem">'+sub+'</div></div></div>'+(active?'<span class="pill teal">You</span>':'<span class="muted">'+icon("lock").replace('stroke-width="2"','stroke-width="2" style="width:15px;height:15px"')+'</span>')+'</div>'; }
+  function boundary(title,desc){ return '<div style="display:flex;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--warn);flex:none;margin-top:1px">'+icon("alert").replace('stroke-width="2"','stroke-width="2" style="width:18px;height:18px"')+'</span><div><div style="font-weight:600;color:#fff;font-size:.86rem">'+title+'</div><div class="muted" style="font-size:.78rem">'+desc+'</div></div></div>'; }
+  function prefRow(title,sub){ return '<div class="flex-between" style="padding:11px 0;border-bottom:1px solid var(--line)"><div><div style="font-weight:600;color:#fff;font-size:.9rem">'+title+'</div><div class="muted" style="font-size:.76rem">'+sub+'</div></div><span class="tgl on" data-toggle style="width:44px;height:26px;border-radius:999px;background:var(--teal);position:relative;flex:none;transition:.2s;display:inline-block"><span style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s"></span></span></div>'; }
+
+  /* ======================= reports ======================= */
+  function exportReport(c, name){
+    var lines=[]; lines.push("TRADESHIELD — "+name.toUpperCase()); lines.push(c.name+" · generated "+new Date().toLocaleString("en-GB")); lines.push("");
+    lines.push("Total recorded,"+c.totalLiabilities); lines.push("Due next 7 days,"+c.next7); lines.push("Overdue,"+c.overdue); lines.push("Funding gap,"+c.fundingGap); lines.push("Allocated %,"+c.allocatedPct); lines.push("");
+    lines.push("Liability,Category,Domain,Due,Amount,Funded,Stage,Status");
+    c.liabilities.forEach(function(l){ lines.push([l.name,l.category,l.domain,l.due,l.amount,l.funded,stageMeta(l.stage).name,(STATUS_PILL[l.status]||["",l.status])[1]].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(",")); });
+    var blob=new Blob([lines.join("\n")],{type:"text/csv"}); var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="tradeshield-"+name.toLowerCase().replace(/\s+/g,"-")+".csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    toast(name+" exported");
+  }
+
+  /* ======================= sheet plumbing ======================= */
+  function openSheet(html){ var b=document.getElementById("sheet"); if(!b){ b=document.createElement("div"); b.id="sheet"; b.className="sheet-backdrop"; b.innerHTML='<div class="sheet"></div>'; document.body.appendChild(b); b.onclick=function(e){ if(e.target===b) closeSheet(); }; } b.querySelector(".sheet").innerHTML=html; requestAnimationFrame(function(){ b.classList.add("show"); }); }
+  function closeSheet(){ var b=document.getElementById("sheet"); if(b) b.classList.remove("show"); }
+
+  /* ======================= boot ======================= */
+  window.addEventListener("hashchange", router);
+  router();
+  window.TSApp = { router: router };
+})();
+
+</script>
