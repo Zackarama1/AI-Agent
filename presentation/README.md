@@ -1,22 +1,26 @@
 # TradeShield — Presentation
 
-`TradeShield-Presentation.pptx` — a 14-slide pitch deck (16:9, editable PowerPoint)
-for presenting the TradeShield PTC Client Liability App and how it works.
+A clear, infographic-led pitch deck (16:9) presenting TradeShield as a **platform**:
+an internal CRM & liability-tracking system for your team, plus an external client
+app — with a roadmap to a commercial app.
+
+- `TradeShield-Presentation.pptx` — editable PowerPoint (speaker notes on every slide)
+- `TradeShield-Presentation.pdf` — same deck as a PDF for quick viewing/sharing
 
 ## Slides
-1. Title — Every liability. Visible and controlled.
-2. Why it exists — Before vs With TradeShield
-3. One platform, two connected apps (client + adviser)
-4. The client dashboard
-5. Every liability, controlled end to end (lifecycle + evidence + audit)
-6. The Action Centre
-7. See exactly what your team is doing (live team-updates feed)
-8. AI assistant + 24/7 support
-9. Connected to Xero & QuickBooks
-10. How it works — the operating rhythm
-11. The PTC model — protection without surrendering your business
-12. Built to commercialise — roadmap to the App Store
-13. Important information — compliance boundaries
-14. Closing — Know what is due. Know what is funded. Know what happens next.
+1. Title — the liability control platform
+2. One platform, two sides (internal CRM + external client app)
+3. Before vs With TradeShield
+4. How it fits together — data flow (Xero/QuickBooks → platform → apps)
+5. Internal — a CRM & tracking system built for liabilities
+6. External — a calm, clear client view
+7. The liability lifecycle (Recorded → Approved → Funded → Paid → Reconciled)
+8. Internal work becomes external clarity (live team-updates feed)
+9. AI assistant + 24/7 support
+10. Connected — Xero & QuickBooks
+11. The revolution — from internal tool to commercial app (3 phases + model)
+12. Important information — compliance boundaries
+13. Closing — outcome + call to action
 
-Every slide carries speaker notes. Screens are real captures of the built app.
+Built as designed HTML slides, each rendered and visually QA’d, then assembled
+into the deck. Screens are real captures of the built app.
