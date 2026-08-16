@@ -40,6 +40,14 @@ window.TS_SEED = {
     review:   { label: "Review",   color: "#8a7bff" }
   },
 
+  /* the TradeShield team working on the client's behalf */
+  team: [
+    { name: "Sarah Ellis",  role: "Liability Specialist", initials: "SE", color: "#29c2d8" },
+    { name: "David Osei",   role: "Funding Lead",         initials: "DO", color: "#3b82f6" },
+    { name: "Priya Nair",   role: "Caseworker",           initials: "PN", color: "#8a7bff" },
+    { name: "Tom Blake",    role: "Client Operations",    initials: "TB", color: "#35d29a" }
+  ],
+
   companies: [
     {
       id: "c1", name: "Northgate Fabrication Ltd", sector: "Manufacturing",
@@ -87,6 +95,41 @@ window.TS_SEED = {
         { id:"a2", type:"document", title:"Upload the supporting supplier invoice", ref:"Trade suppliers", refId:"l6", due:"2026-08-16", priority:"medium" },
         { id:"a3", type:"decision", title:"Confirm the proposed finance repayment", ref:"Trade finance facility", refId:"l1", due:"2026-08-24", priority:"high" },
         { id:"a4", type:"review",   title:"Resolve the overdue professional fee", ref:"Professional fees", refId:"l5", due:"2026-08-01", priority:"high", escalated:true }
+      ],
+      // what the TradeShield team is doing for this client — status updates
+      teamUpdates: [
+        { id:"u1", type:"arrangement", status:"done", by:0, date:"2026-08-14",
+          title:"Time to Pay arrangement secured with HMRC", related:"VAT · £54,540",
+          desc:"We negotiated a 12-month instalment plan on your VAT liability. No enforcement action will be taken while the arrangement is maintained.",
+          next:"First instalment scheduled for 7 Sep — we'll remind you." },
+        { id:"u2", type:"negotiation", status:"progress", by:1, date:"2026-08-12",
+          title:"Restructuring your trade finance facility", related:"Trade finance · £400,000",
+          desc:"We've put a proposal to Alliance Trade Finance to spread your £400,000 facility over 18 months and ease the maturity pressure.",
+          next:"Awaiting their counter-signature by 24 Aug — we're chasing." },
+        { id:"u3", type:"escalation", status:"progress", by:2, date:"2026-08-09",
+          title:"Disputed professional fee — recovery paused", related:"Professional fees · £20,500",
+          desc:"We've formally queried part of this fee and asked the creditor to hold recovery while it's reviewed, protecting you from further pressure.",
+          next:"Chasing the supporting breakdown from the supplier." },
+        { id:"u4", type:"payment", status:"done", by:0, date:"2026-08-06",
+          title:"PAYE part-payment agreed with HMRC", related:"PAYE & NIC · £100,200",
+          desc:"We arranged for £40,000 to be accepted on account and rescheduled the balance to line up with your payroll cycle.",
+          next:"Balance tracked against 22 Aug." },
+        { id:"u5", type:"review", status:"progress", by:3, date:"2026-08-05",
+          title:"Protecting your supply line", related:"Trade suppliers · £20,000",
+          desc:"We issued a holding statement to your components supplier to keep supply running while funding is arranged — avoiding a stop-supply.",
+          next:"Monitoring the account weekly." },
+        { id:"u6", type:"awaiting", status:"awaiting", by:0, date:"2026-08-07", actionId:"a1",
+          title:"We need your approval to release VAT funding", related:"VAT · £54,540",
+          desc:"Everything's in place to action your agreed VAT payment — we just need you to approve the funding release.",
+          next:"Tap to approve — takes a few seconds." },
+        { id:"u7", type:"filing", status:"done", by:3, date:"2026-08-11",
+          title:"Weekly position review completed", related:"Whole business",
+          desc:"We reconciled this week's activity, refreshed your funding plan and updated the status of every liability so your dashboard is current.",
+          next:"Next review 18 Aug." },
+        { id:"u8", type:"report", status:"scheduled", by:1, date:"2026-08-31",
+          title:"Month-end board report", related:"Whole business",
+          desc:"We'll prepare your board report covering position, exceptions and next actions, ready for your records or your accountant.",
+          next:"Delivered by 31 Aug." }
       ]
     },
     {

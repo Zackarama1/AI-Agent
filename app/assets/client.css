@@ -61,6 +61,42 @@
 .support-tile .st-name { display: block; font-weight: 700; color: #fff; }
 .support-tile .st-sub { display: block; font-size: .8rem; color: var(--ink-faint); margin-top: 2px; }
 
+/* ---------- team updates feed ---------- */
+.team-banner {
+  border-radius: var(--radius); padding: 18px; border: 1px solid var(--line-2);
+  background:
+    radial-gradient(460px 180px at 88% 0%, rgba(41,194,216,.16), transparent 60%),
+    linear-gradient(160deg, var(--navy-soft), var(--panel-solid));
+}
+.team-cluster { display: flex; margin-bottom: 12px; }
+.team-cluster .tc { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; font-size: .74rem; color: #04121e; border: 2px solid var(--panel-solid); margin-left: -9px; }
+.team-cluster .tc:first-child { margin-left: 0; }
+.team-banner h2 { font-size: 1.12rem; margin: 0 0 3px; }
+.team-banner p { margin: 0; color: var(--ink-soft); font-size: .88rem; }
+.team-stats { display: flex; gap: 10px; margin-top: 14px; }
+.team-stats .ts { flex: 1; background: rgba(5,11,28,.4); border: 1px solid var(--line); border-radius: 11px; padding: 10px; text-align: center; }
+.team-stats .ts b { display: block; font-size: 1.25rem; color: #fff; }
+.team-stats .ts span { font-size: .68rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+
+.update { display: flex; gap: 12px; padding: 14px 14px 14px 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); position: relative; overflow: hidden; margin-bottom: 11px; }
+.update::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.update.s-done::before      { background: var(--ok); }
+.update.s-progress::before  { background: var(--teal); }
+.update.s-awaiting::before  { background: var(--warn); }
+.update.s-scheduled::before { background: var(--ink-faint); }
+.update .u-ic { width: 40px; height: 40px; border-radius: 11px; flex: none; display: grid; place-items: center; }
+.update .u-ic svg { width: 19px; height: 19px; }
+.update .u-body { flex: 1; min-width: 0; }
+.update .u-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.update .u-title { font-weight: 700; color: #fff; font-size: .95rem; line-height: 1.3; }
+.update .u-rel { font-size: .76rem; color: var(--ink-faint); margin-top: 3px; }
+.update .u-desc { font-size: .87rem; color: var(--ink-soft); margin: 9px 0 0; line-height: 1.5; }
+.update .u-next { font-size: .8rem; color: var(--ink-soft); margin-top: 9px; padding: 9px 11px; background: rgba(5,11,28,.4); border-radius: 9px; }
+.update .u-next b { color: var(--teal); }
+.update .u-team { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: .77rem; color: var(--ink-faint); }
+.update .u-av { width: 25px; height: 25px; border-radius: 7px; display: grid; place-items: center; font-size: .6rem; font-weight: 700; color: #04121e; flex: none; }
+.update .u-approve { margin-top: 11px; }
+
 /* ---------- AI assistant chat ---------- */
 .assistant-screen { display: flex; flex-direction: column; height: calc(100vh - var(--tab-h)); padding: 0; max-width: 760px; margin: 0 auto; }
 .chat-head { padding: 14px 18px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; background: linear-gradient(180deg, rgba(5,11,28,.9), transparent); }

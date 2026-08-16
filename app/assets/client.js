@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var STORE = "tradeshield.client.v1";
+  var STORE = "tradeshield.client.v2";
   var seed = JSON.parse(JSON.stringify(window.TS_SEED));
   // the client sees ONE business (their own)
   var biz = load();
@@ -31,6 +31,10 @@
   var STATUS_PILL = { funded:["ok","Funded"], part:["warn","Part funded"], due:["info","Due"], soon:["warn","Due soon"], approved:["teal","Approved"], overdue:["danger","Overdue"], reconciled:["ok","Reconciled"] };
   var CAT_COLOR = { "VAT":"#3b82f6","PAYE & NIC":"#8a7bff","Corporation Tax":"#ff6b5e","Staff wages":"#35d29a","Suppliers":"#f0b64a","Insurance":"#29c2d8","Trade finance":"#5c6cff","Professional fees":"#c79a3e","Other":"#6b7ea6" };
   function nowTime(){ return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}); }
+  var U_STATUS = { done:["ok","Completed","s-done"], progress:["teal","In progress","s-progress"], awaiting:["warn","Awaiting you","s-awaiting"], scheduled:["neutral","Scheduled","s-scheduled"] };
+  var U_COLOR  = { done:"#35d29a", progress:"#29c2d8", awaiting:"#f0b64a", scheduled:"#6b7ea6" };
+  function teamMember(i){ return seed.team[i]||seed.team[0]; }
+  function updateIcon(type){ return {arrangement:"check",negotiation:"chat",escalation:"alert",payment:"card",review:"refresh",filing:"file",report:"calendar",awaiting:"clock"}[type]||"shield"; }
 
   /* ---- derived business facts (for KPIs + the assistant) ---- */
   function facts(){
@@ -59,7 +63,8 @@
       mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
       plus:'<path d="M12 5v14M5 12h14"/>', check:'<path d="M20 6L9 17l-5-5"/>', shield:'<path d="M12 3l8 4v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7z"/>',
       alert:'<path d="M12 2l10 18H2z"/><path d="M12 9v5M12 17h.01"/>', clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
-      logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', file:'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/>' };
+      logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', file:'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/>',
+      activity:'<path d="M3 12h4l3 8 4-16 3 8h4"/>', calendar:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>', refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>' };
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(p[n]||"")+'</svg>'; }
 
   var root = document.getElementById("app");
@@ -69,7 +74,8 @@
   function router(){
     if(!ui.loggedIn){ renderLogin(); return; }
     var v = (location.hash.replace(/^#\/?/,"")||"home").split("/")[0];
-    if(v==="liabilities") renderShell(renderLiabilities(),"liabilities");
+    if(v==="updates") renderShell(renderUpdates(),"updates");
+    else if(v==="liabilities") renderShell(renderLiabilities(),"liabilities");
     else if(v==="assistant") renderAssistant();
     else if(v==="support") renderShell(renderSupport(),"support");
     else if(v==="account") renderShell(renderAccount(),"account");
@@ -78,15 +84,15 @@
   }
   function renderShell(inner, tab){ root.innerHTML = inner + tabbar(tab); bindTabs(); }
   function tabbar(active){
-    var tabs=[["home","home","Home"],["liabilities","list","Liabilities"],["assistant","spark","Assistant"],["support","life","Support"],["account","user","Account"]];
+    var tabs=[["home","home","Home"],["updates","activity","Updates"],["liabilities","list","Liabilities"],["assistant","spark","Assistant"],["support","life","Support"]];
     return '<nav class="tabbar">'+tabs.map(function(t){return '<button data-route="'+t[0]+'" class="'+(t[0]===active?"active":"")+'">'+icon(t[1])+'<span>'+t[2]+'</span></button>';}).join("")+'</nav>';
   }
   function bindTabs(){ root.querySelectorAll(".tabbar button").forEach(function(b){ b.onclick=function(){ location.hash="#/"+b.getAttribute("data-route"); }; }); }
   function topbar(title, sub){
     return '<header class="topbar"><div style="display:flex;align-items:center;gap:12px"><div>'+tsMark()+'</div><div><div class="tb-title">'+esc(title)+'</div>'+(sub?'<div class="tb-sub">'+esc(sub)+'</div>':'')+'</div></div>'
-      + '<div class="tb-right"><button class="icon-btn" id="tb-help">'+icon("life")+'</button><div class="avatar">'+esc(client.initials)+'</div></div></header>';
+      + '<div class="tb-right"><button class="icon-btn" id="tb-help">'+icon("life")+'</button><button class="avatar" id="tb-avatar" style="border:none">'+esc(client.initials)+'</button></div></header>';
   }
-  function bindTop(){ var h=document.getElementById("tb-help"); if(h) h.onclick=function(){ location.hash="#/support"; }; }
+  function bindTop(){ var h=document.getElementById("tb-help"); if(h) h.onclick=function(){ location.hash="#/support"; }; var av=document.getElementById("tb-avatar"); if(av) av.onclick=function(){ location.hash="#/account"; }; }
 
   /* ================= LOGIN ================= */
   function renderLogin(){
@@ -125,6 +131,17 @@
       + '<div><div class="sh-label">Business status</div><div class="sh-status">'+statusText+'</div></div></div>'
       + '<div class="sh-summary">'+statusSentence(f)+'</div>'
       + '<div class="sh-chips">'+summaryBits.join("")+'</div></div>';
+
+    // what your TradeShield team is doing (preview)
+    var ups = (biz.teamUpdates||[]); var activeUps = ups.filter(function(u){return u.status!=="done";});
+    if(ups.length){
+      var latest = activeUps[0] || ups[0];
+      out += '<div class="section-label" style="display:flex;justify-content:space-between;align-items:center">Your TradeShield team <a href="#/updates" id="home-updates" style="font-size:.72rem">See all updates</a></div>';
+      out += '<div class="team-banner"><div class="team-cluster">'+seed.team.map(function(t){return '<span class="tc" style="background:'+t.color+'">'+t.initials+'</span>';}).join("")+'</div>'
+        + '<h2 style="font-size:1.02rem">We\'re actively working on '+activeUps.length+' thing'+(activeUps.length===1?"":"s")+' for you</h2>'
+        + '<p style="font-size:.86rem;margin-top:3px">Latest: '+esc(latest.title)+'</p>'
+        + '<button class="btn btn-ghost btn-sm" id="home-updates2" style="margin-top:13px">'+icon("activity").replace('stroke-width="2"','stroke-width="2" style="width:15px;height:15px"')+' See what we\'re doing</button></div>';
+    }
 
     // KPIs
     out += '<div class="section-label">Your numbers</div>';
@@ -168,6 +185,8 @@
       root.querySelectorAll("[data-action]").forEach(function(b){ b.onclick=function(){ openActionSheet(b.getAttribute("data-action")); }; });
       var ss=document.getElementById("home-support-send"); if(ss) ss.onclick=function(){ var v=(document.getElementById("home-support").value||"").trim(); if(!v){ toast("Type a message first"); return; } document.getElementById("home-support").value=""; toast("Sent — an agent will reply shortly"); };
       var ai=document.getElementById("home-ai"); if(ai) ai.onclick=function(){ location.hash="#/assistant"; };
+      var hu=document.getElementById("home-updates"); if(hu) hu.onclick=function(e){ e.preventDefault(); location.hash="#/updates"; };
+      var hu2=document.getElementById("home-updates2"); if(hu2) hu2.onclick=function(){ location.hash="#/updates"; };
     },0);
     return s+out;
   }
@@ -198,6 +217,50 @@
       + '<span class="lr-logo" style="width:34px;height:34px;border-radius:9px;background:'+at.color+'22;color:'+at.color+';border:1px solid '+at.color+'55">'+icon(a.type==="approval"?"check":a.type==="document"?"file":a.type==="decision"?"shield":"alert")+'</span>'
       + '<span class="lr-main"><span class="lr-name" style="font-size:.9rem">'+esc(a.title)+'</span><span class="lr-meta">'+at.label+' · '+esc(a.ref)+'</span></span>'
       + '<span class="lr-right"><span class="pill '+pr[0]+'">'+pr[1]+'</span><div class="lr-meta" style="margin-top:4px;color:'+(a.escalated||daysUntil(a.due)<0?"var(--danger)":"var(--ink-faint)")+'">'+due+'</div></span></button>';
+  }
+
+  /* ================= UPDATES (what the team is doing) ================= */
+  function renderUpdates(){
+    var s = topbar("Updates", "What your TradeShield team is doing");
+    var ups = (biz.teamUpdates||[]).slice();
+    var active = ups.filter(function(u){return u.status!=="done";});
+    var done = ups.filter(function(u){return u.status==="done";});
+    var progress = ups.filter(function(u){return u.status==="progress";}).length;
+    var awaiting = ups.filter(function(u){return u.status==="awaiting";}).length;
+    var order = { awaiting:0, progress:1, scheduled:2 };
+    active.sort(function(a,b){ return (order[a.status]-order[b.status]) || (new Date(b.date)-new Date(a.date)); });
+    done.sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
+
+    var out = '<div class="screen active">';
+    out += '<div class="team-banner"><div class="team-cluster">'+seed.team.map(function(t){return '<span class="tc" style="background:'+t.color+'" title="'+esc(t.name)+'">'+t.initials+'</span>';}).join("")+'</div>'
+      + '<h2>Your TradeShield team is on it</h2><p>We\'re working on your behalf. Here\'s exactly what\'s happening — and what we\'ve already handled for you.</p>'
+      + '<div class="team-stats"><div class="ts"><b>'+progress+'</b><span>In progress</span></div><div class="ts"><b>'+awaiting+'</b><span>Awaiting you</span></div><div class="ts"><b>'+done.length+'</b><span>Completed</span></div></div></div>';
+
+    out += '<div class="section-label">Happening now</div>';
+    out += active.length ? active.map(updateCard).join("") : '<div class="empty">Nothing in progress right now.</div>';
+    if(done.length){ out += '<div class="section-label">Completed for you</div>' + done.map(updateCard).join(""); }
+    out += '<div class="muted" style="font-size:.76rem;margin-top:14px;padding:0 4px">Every update is time-stamped and shows the team member responsible. Questions on any of these? Ask the assistant or your team any time.</div>';
+    out += '</div>';
+    setTimeout(function(){
+      bindTop();
+      root.querySelectorAll("[data-approve]").forEach(function(b){ b.onclick=function(){ openActionSheet(b.getAttribute("data-approve")); }; });
+      root.querySelectorAll("[data-ask-update]").forEach(function(b){ b.onclick=function(){ location.hash="#/assistant"; var q=b.getAttribute("data-ask-update"); setTimeout(function(){ sendUser("What's the latest on "+q+"?"); },260); }; });
+    },0);
+    return s+out;
+  }
+  function updateCard(u){
+    var st = U_STATUS[u.status]||["neutral",u.status,"s-progress"];
+    var m = teamMember(u.by); var col = U_COLOR[u.status]||"#29c2d8";
+    var html = '<div class="update '+st[2]+'"><span class="u-ic" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'55">'+icon(updateIcon(u.type))+'</span>'
+      + '<div class="u-body"><div class="u-top"><span class="u-title">'+esc(u.title)+'</span><span class="pill '+st[0]+'">'+st[1]+'</span></div>'
+      + '<div class="u-rel">'+esc(u.related)+' · '+fmtDate(u.date)+'</div>'
+      + '<p class="u-desc">'+esc(u.desc)+'</p>'
+      + (u.next?'<div class="u-next"><b>Next:</b> '+esc(u.next)+'</div>':'')
+      + '<div class="u-team"><span class="u-av" style="background:'+m.color+'">'+esc(m.initials)+'</span> '+esc(m.name)+' · '+esc(m.role)+'</div>';
+    if(u.actionId){ html += '<button class="btn btn-primary btn-sm u-approve" data-approve="'+esc(u.actionId)+'">Review &amp; approve</button>'; }
+    else { html += '<button class="btn btn-ghost btn-sm u-approve" data-ask-update="'+esc(u.related)+'">Ask about this</button>'; }
+    html += '</div></div>';
+    return html;
   }
 
   /* ================= LIABILITIES ================= */
@@ -256,7 +319,7 @@
     if(!chat.length){ chat.push({who:"bot", html:"Hi "+esc(client.director.split(" ")[0])+" 👋 I'm your TradeShield assistant. I can see <b>"+esc(client.company)+"</b>'s live position and answer questions about what's due, what's funded and what needs you. Ask me anything — or tap a suggestion below."}); }
     var head = '<div class="chat-head"><div class="ch-av">'+icon("spark")+'</div><div><div class="ch-name">TradeShield Assistant</div><div class="ch-status"><span class="live-dot" style="width:7px;height:7px;box-shadow:none"></span> Online · sees your live data</div></div></div>';
     var msgs = '<div class="chat-scroll" id="chat-scroll">'+chat.map(bubble).join("")+'</div>';
-    var chips = ['What needs my approval?','What\'s overdue?','How much do I owe HMRC?','What\'s my funding gap?','When\'s my next payment?','How is my business doing?'];
+    var chips = ['What is the team doing for me?','What needs my approval?','What\'s overdue?','How much do I owe HMRC?','What\'s my funding gap?','When\'s my next payment?'];
     var chipRow = '<div class="chips-wrap"><div class="chips" id="chips">'+chips.map(function(c){return '<button class="chip" data-chip="'+esc(c)+'">'+esc(c)+'</button>';}).join("")+'</div></div>';
     var composer = '<div class="composer"><input id="chat-input" placeholder="Ask about your business…" autocomplete="off"><button class="send" id="chat-send">'+icon("send")+'</button></div>'
       + '<div class="disclaimer-mini">Assistant answers reflect recorded data. It does not give legal or financial advice.</div>';
@@ -328,6 +391,11 @@
     if(has("supplier","supply","purchase","trade")){
       var sup=biz.liabilities.filter(function(l){return l.domain==="Supply";});
       return "Your supply & trade liabilities:" + listLi(sup.map(function(l){return [l.name+" · due "+fmtDate(l.due), gbp(l.amount)];}));
+    }
+    if(has("what are you doing","what is the team","what's the team","team doing","working on","progress on","update on","what have you done","doing for me","on my behalf","supporting me","what you're doing","whats happening","what's happening","fighting")){
+      var ups=(biz.teamUpdates||[]); var act=ups.filter(function(u){return u.status!=="done";}); var dn=ups.filter(function(u){return u.status==="done";});
+      if(!ups.length) return "Your team keeps this updated as work happens — nothing logged just yet.";
+      return "Here's what your TradeShield team is actively doing for you right now:" + listLi(act.slice(0,4).map(function(u){return [u.title, (U_STATUS[u.status]||["","",""])[1]];})) + "We've also completed <b>"+dn.length+"</b> thing"+(dn.length===1?"":"s")+" for you recently. Open the <b>Updates</b> tab to see every step, who's handling it and what's next.";
     }
     if(has("how is","how's","how am","doing","status","health","overall","summary","position","where do i stand","how are we")){
       return statusSentence(f) + listLi([["Total recorded", gbp(biz.totalLiabilities)],["Overdue", gbp(biz.overdue)],["Still to fund", gbp(biz.fundingGap)],["Waiting on you", f.pending.length+" item"+(f.pending.length===1?"":"s")]]);
