@@ -12,8 +12,10 @@ any network/parse error, so the app never hard-fails (and still runs in
 locked-down/CI environments with no egress).
 """
 
+import email.utils
 import hashlib
 import time
+import xml.etree.ElementTree as ET
 
 import httpx
 
@@ -31,6 +33,7 @@ _UNIVERSE = [
 
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 YAHOO_BASE = "https://query1.finance.yahoo.com"
+GNEWS_URL = "https://news.google.com/rss/search"
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
@@ -203,6 +206,54 @@ async def _yahoo_search(query: str) -> list[SearchResult]:
     return out[:15]
 
 
+# ===========================================================================
+# GOOGLE NEWS RSS provider (no API key) — real-world headlines from every outlet
+# ===========================================================================
+
+def _rfc822_to_epoch(s: str) -> int:
+    try:
+        return int(email.utils.parsedate_to_datetime(s).timestamp())
+    except Exception:
+        return 0
+
+
+def parse_google_news(xml_text: str) -> list[NewsItem]:
+    """Pure parser for a Google News RSS feed → NewsItem[] (unit-testable)."""
+    root = ET.fromstring(xml_text)
+    items: list[NewsItem] = []
+    for it in root.iter("item"):
+        title = (it.findtext("title") or "").strip()
+        if not title:
+            continue
+        link = (it.findtext("link") or "").strip()
+        pub = _rfc822_to_epoch(it.findtext("pubDate") or "")
+        src_el = it.find("source")
+        source = (src_el.text or "").strip() if src_el is not None else ""
+        # Google formats titles as "Headline - Source"; drop the trailing source.
+        if source and title.endswith(f" - {source}"):
+            title = title[: -(len(source) + 3)].strip()
+        items.append(NewsItem(
+            headline=title, summary=source, source=source or "Google News",
+            url=link, datetime=pub,
+        ))
+    return items[:15]
+
+
+async def _google_news(symbol: str) -> list[NewsItem]:
+    async with httpx.AsyncClient(timeout=12, headers={"User-Agent": _UA},
+                                 follow_redirects=True) as client:
+        r = await client.get(
+            GNEWS_URL,
+            params={"q": f"{symbol.upper()} stock when:14d",
+                    "hl": "en-US", "gl": "US", "ceid": "US:en"},
+        )
+        r.raise_for_status()
+        items = parse_google_news(r.text)
+    if not items:
+        raise ValueError("no news")
+    return items
+
+
 async def _yahoo_news(symbol: str) -> list[NewsItem]:
     async with httpx.AsyncClient(timeout=12, headers={"User-Agent": _UA}) as client:
         r = await client.get(
@@ -318,14 +369,21 @@ async def get_history(symbol: str, days: int = 30) -> History:
 
 
 async def get_company_news(symbol: str, days: int = 7) -> list[NewsItem]:
-    p = _provider()
-    try:
-        if p == "yahoo":
+    """Real-world headlines. Google News RSS is tried first (keyless, aggregates
+    every outlet), then the configured provider's news, then mock."""
+    if settings.provider != "mock":
+        # 1) Google News RSS — best real-world coverage, no key.
+        try:
+            return await _google_news(symbol)
+        except Exception:
+            pass
+        # 2) Provider-specific news.
+        try:
+            if settings.provider == "finnhub":
+                return await _finnhub_news(symbol, days)
             return await _yahoo_news(symbol)
-        if p == "finnhub":
-            return await _finnhub_news(symbol, days)
-    except Exception:
-        pass
+        except Exception:
+            pass
     return _mock_news(symbol)
 
 

@@ -22,9 +22,11 @@ English.
 
 ## Live data + paper trading
 
-- **Live market data with no API key.** Quotes, charts, and news come from
-  Yahoo Finance's public API by default — real data, out of the box. Falls back
-  to mock data offline; switch to Finnhub with a key via `MARKET_PROVIDER`.
+- **Live market data with no API key.** Quotes and charts come from Yahoo
+  Finance's public API; **news comes from Google News RSS** — real headlines
+  aggregated from every outlet (CNBC, Reuters, Bloomberg, …), also keyless.
+  Real data out of the box; falls back to mock offline. Switch quotes to
+  Finnhub with a key via `MARKET_PROVIDER`.
 - **Paper trading.** Every account starts with $100k of virtual cash. Buy and
   sell at live prices; positions and average cost are derived from your fills,
   with a full activity log. Reset anytime.
@@ -83,8 +85,8 @@ See `backend/README.md` and `mobile/README.md` for details.
 
 ## APIs used
 
-- **Yahoo Finance public API** — live quotes, history, and news. No key needed;
-  the default provider.
+- **Yahoo Finance public API** — live quotes + history. No key needed; default.
+- **Google News RSS** — real company news from every major outlet. No key.
 - **[Finnhub](https://finnhub.io)** — optional alternative (needs a key); adds an
   earnings calendar. Scale to [Polygon.io](https://polygon.io) for full depth.
 - **Claude (Anthropic API)** — the AI daily brief and news summaries.

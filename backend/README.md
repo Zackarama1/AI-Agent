@@ -7,10 +7,12 @@ fills), and Claude-powered insights — all behind per-user auth.
 ## Live data with no API key
 
 Market data defaults to **Yahoo Finance's public API — real quotes, history,
-and news with no key required**. On a normal network it works out of the box.
-In an offline/locked-down environment it automatically falls back to
-deterministic mock data, so the app never hard-fails. Set `MARKET_PROVIDER`
-to `finnhub` (with a key), `yahoo`, or `mock` to override.
+with no key required**. Company **news** comes from **Google News RSS** (also
+keyless), which aggregates real headlines from every outlet — Yahoo/Finnhub
+news are fallbacks. On a normal network it all works out of the box; in an
+offline/locked-down environment it falls back to deterministic mock data, so
+the app never hard-fails. Set `MARKET_PROVIDER` to `finnhub` (with a key),
+`yahoo`, or `mock` to override quotes.
 
 ## Paper trading
 
