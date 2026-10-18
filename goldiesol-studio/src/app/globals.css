@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* Dark mode follows the system unless the user picks one (html[data-theme]). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --gs-ivory: #FBF7F2;
+  --gs-blush: #FEF5F4;
+  --gs-rose: #E8C4C0;
+  --gs-champagne: #D8B98A;
+  --gs-gold-deep: #A8834B;
+  --gs-ink: #2B2422;
+  --gs-mist: #8C807A;
+  --gs-line: #EADFD6;
+  --gs-surface: #FFFFFF;
+  --gs-shadow: 0 1px 2px rgb(43 36 34 / 0.04), 0 8px 24px -12px rgb(43 36 34 / 0.12);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gs-ivory: #1C1715;
+    --gs-blush: #241E1B;
+    --gs-rose: #5A403C;
+    --gs-champagne: #D8B98A;
+    --gs-gold-deep: #E6CDA4;
+    --gs-ink: #F3EBE3;
+    --gs-mist: #A79B93;
+    --gs-line: #3A302B;
+    --gs-surface: #221C19;
+    --gs-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --gs-ivory: #1C1715;
+  --gs-blush: #241E1B;
+  --gs-rose: #5A403C;
+  --gs-champagne: #D8B98A;
+  --gs-gold-deep: #E6CDA4;
+  --gs-ink: #F3EBE3;
+  --gs-mist: #A79B93;
+  --gs-line: #3A302B;
+  --gs-surface: #221C19;
+  --gs-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-ivory: var(--gs-ivory);
+  --color-blush: var(--gs-blush);
+  --color-rose: var(--gs-rose);
+  --color-champagne: var(--gs-champagne);
+  --color-gold-deep: var(--gs-gold-deep);
+  --color-ink: var(--gs-ink);
+  --color-mist: var(--gs-mist);
+  --color-line: var(--gs-line);
+  --color-surface: var(--gs-surface);
+  --font-display: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  --font-sans: var(--font-manrope), "Manrope", system-ui, sans-serif;
+  --radius-gs: 16px;
+  --shadow-soft: var(--gs-shadow);
+}
+
+body {
+  background: var(--gs-ivory);
+  color: var(--gs-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Spaced small caps used for labels throughout the studio. */
+.gs-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gs-mist);
+}
+
+.gs-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gs-champagne), transparent);
+  opacity: 0.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gs-champagne);
+  outline-offset: 2px;
+}
