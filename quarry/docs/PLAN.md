@@ -1,6 +1,7 @@
 # QUARRY — Plan (Phase 0 + Phase 1)
 
-Status: **DRAFT, awaiting Zack's approval.** No code until approved.
+Status: **Approved 2026-10-18 ("go"), defaults accepted: `quarry/` folder in this repo,
+Valkey, TimescaleDB licence, GBP. Phase 0 complete — see "Phase 0 results" at the end.**
 Date: 2026-10-18. Figures marked † come from the master prompt and third-party
 trackers. Each is re-checked against vendor docs before its adapter is built,
 and any difference is logged in `docs/PROVIDERS.md`.
@@ -343,3 +344,19 @@ the gaps.
 6. **IBKR account?** If yes, is it IBKR (UK)? This decides the real-time LSE route.
 7. **Runtime target:** local Docker on a laptop (Mac/Windows/Linux?) or a VPS?
 8. **Contact email** for the SEC User-Agent (P3). Fine to defer.
+
+---
+
+## Phase 0 results (2026-10-18)
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| `make dev` works from a clean clone | `make dev-native` path run here (api + worker + SPA against local Postgres/Redis). `make dev`/`make up` need Docker, which this environment lacks: **not yet run** | Partial |
+| `/health` green | `GET /health` → `{"status":"ok", checks: database/redis/worker all true}`; E2E test `health endpoint is green` | Pass |
+| Tests and lint pass | Backend: 38 pytest (unit + integration on real Postgres/Redis), ruff, mypy --strict. Frontend: 27 vitest, eslint, prettier, tsc strict. pip-audit / pnpm audit clean | Pass |
+| Unknown commands handled gracefully | Parser returns a message plus suggestions; error panel with "Did you mean" buttons; E2E `unknown commands are handled gracefully` | Pass |
+| Layouts save and restore | Autosave + Ctrl+S to `/api/workspaces` (per form factor); E2E clears localStorage, reloads and restores from the server | Pass |
+| iPad (added scope) | Tablet layout, 44px targets, chips, pane switching, PWA manifest + service worker; E2E on iPad Pro 11 viewport with touch (Chromium here; WebKit runs in CI) | Pass |
+
+Deviations: no separate `web` container (the API serves the SPA, ADR-0010); `dockview-react`
+replaces `dockview` (ADR-0004); `provider_status` lives in Redis rather than a table.

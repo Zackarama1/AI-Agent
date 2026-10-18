@@ -1,0 +1,21 @@
+# Install once: `pipx install pre-commit && pre-commit install` (run from the repo root
+# with `--config quarry/.pre-commit-config.yaml`).
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^quarry/backend/
+      - id: ruff-format
+        files: ^quarry/backend/
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: detect-private-key

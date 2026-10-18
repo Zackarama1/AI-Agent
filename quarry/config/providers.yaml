@@ -1,0 +1,182 @@
+# Provider capability manifests + routing priorities.
+# Limits/costs marked "unverified" come from the master prompt and third-party trackers;
+# each is checked against vendor docs when its adapter is built (docs/PROVIDERS.md).
+# Paid providers stay `enabled: false` until Zack approves them.
+
+providers:
+  finnhub:
+    display_name: Finnhub
+    cost_tier: free
+    key_fields: [finnhub_api_key]
+    asset_classes: [equity, etf, fx, crypto, news, reference]
+    exchanges: [XNYS, XNAS]
+    latency_class: realtime
+    rate_limits: [{requests: 60, seconds: 60}]
+    ws_symbol_cap: 50
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    docs_url: https://finnhub.io/docs/api
+    notes: Free tier is largely US-only for quotes. Unverified.
+
+  alpaca:
+    display_name: Alpaca (IEX)
+    cost_tier: free
+    key_fields: [alpaca_api_key_id, alpaca_api_secret_key]
+    asset_classes: [equity, etf, crypto]
+    exchanges: [XNYS, XNAS]
+    latency_class: realtime
+    venue: IEX
+    rate_limits: [{requests: 200, seconds: 60}]
+    ws_symbol_cap: 30
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    docs_url: https://docs.alpaca.markets/docs/about-market-data-api
+    notes: Basic = real-time IEX venue only; consolidated SIP delayed 15 min. Unverified.
+
+  twelvedata:
+    display_name: Twelve Data
+    cost_tier: free
+    key_fields: [twelvedata_api_key]
+    asset_classes: [equity, etf, index, fx, crypto, commodity]
+    latency_class: eod
+    rate_limits: [{requests: 8, seconds: 60}, {requests: 800, seconds: 86400}]
+    ws_symbol_cap: 8
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    docs_url: https://twelvedata.com/docs
+    notes: Basic plan exchange coverage (esp. LSE) to verify in P1.1.
+
+  fmp:
+    display_name: Financial Modeling Prep
+    cost_tier: free
+    key_fields: [fmp_api_key]
+    asset_classes: [equity, etf, reference]
+    latency_class: eod
+    rate_limits: [{requests: 250, seconds: 86400}]
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    docs_url: https://site.financialmodelingprep.com/developer/docs
+
+  eodhd:
+    display_name: EODHD
+    cost_tier: free
+    key_fields: [eodhd_api_key]
+    asset_classes: [equity, etf, index, reference]
+    exchanges: [XLON]
+    latency_class: eod
+    rate_limits: [{requests: 20, seconds: 86400}]
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    docs_url: https://eodhd.com/financial-apis/
+
+  openfigi:
+    display_name: OpenFIGI
+    cost_tier: free
+    asset_classes: [reference]
+    latency_class: indicative
+    rate_limits: [{requests: 25, seconds: 60}]
+    licence: {personal_only: false, display_allowed: true, redistribution_allowed: true}
+    docs_url: https://www.openfigi.com/api
+
+  rss:
+    display_name: Official RSS feeds
+    cost_tier: free
+    asset_classes: [news]
+    latency_class: realtime
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    notes: Headline + link + short excerpt only.
+
+  fred:
+    display_name: FRED
+    cost_tier: free
+    key_fields: [fred_api_key]
+    asset_classes: [rates, macro]
+    latency_class: eod
+    rate_limits: [{requests: 120, seconds: 60, soft: true}]
+    licence:
+      personal_only: false
+      display_allowed: true
+      redistribution_allowed: false
+      attribution_text: "This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis."
+    docs_url: https://fred.stlouisfed.org/docs/api/fred/
+
+  coingecko:
+    display_name: CoinGecko (Demo)
+    cost_tier: free
+    key_fields: [coingecko_api_key]
+    asset_classes: [crypto, reference]
+    latency_class: indicative
+    rate_limits: [{requests: 100, seconds: 60}, {requests: 10000, seconds: 2592000}]
+    licence:
+      personal_only: true
+      display_allowed: true
+      redistribution_allowed: false
+      attribution_text: "Data provided by CoinGecko"
+
+  binance:
+    display_name: Binance public WS
+    cost_tier: free
+    asset_classes: [crypto]
+    latency_class: realtime
+    venue: Binance
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+
+  coinbase:
+    display_name: Coinbase public WS
+    cost_tier: free
+    asset_classes: [crypto]
+    latency_class: realtime
+    venue: Coinbase
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+
+  oanda:
+    display_name: OANDA v20 (practice)
+    cost_tier: free
+    key_fields: [oanda_api_token]
+    asset_classes: [fx, commodity]
+    latency_class: indicative
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    notes: Max 4 prices/sec/instrument; UK users need a v20 sub-account. Unverified.
+
+  # ---- paid upgrades (ask first) ----
+  ibkr:
+    display_name: Interactive Brokers
+    enabled: false
+    cost_tier: paid
+    monthly_cost_usd: 17
+    asset_classes: [equity, etf, index, fx, future, option, commodity]
+    exchanges: [XNYS, XNAS, XLON]
+    latency_class: realtime
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+    notes: US bundle ~$10 + LSE L1 GBP 5 non-pro. Needs an IBKR account and IB Gateway. Unverified.
+
+  alpaca_sip:
+    display_name: Alpaca Algo Trader Plus
+    enabled: false
+    cost_tier: paid
+    monthly_cost_usd: 99
+    key_fields: [alpaca_api_key_id, alpaca_api_secret_key]
+    asset_classes: [equity, etf, option]
+    exchanges: [XNYS, XNAS]
+    latency_class: realtime
+    rate_limits: [{requests: 10000, seconds: 60}]
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+
+  eodhd_aio:
+    display_name: EODHD All-In-One
+    enabled: false
+    cost_tier: paid
+    monthly_cost_usd: 99.99
+    key_fields: [eodhd_api_key]
+    asset_classes: [equity, etf, index, bond, reference]
+    exchanges: [XLON]
+    latency_class: delayed_15m
+    rate_limits: [{requests: 100000, seconds: 86400}]
+    licence: {personal_only: true, display_allowed: true, redistribution_allowed: false}
+
+routing:
+  quotes.us_equity: [alpaca, finnhub]
+  quotes.uk_equity: [twelvedata, eodhd]
+  bars.us_equity: [alpaca, twelvedata, fmp]
+  bars.uk_equity: [twelvedata, eodhd]
+  reference.search: [finnhub, fmp, eodhd]
+  reference.figi: [openfigi]
+  news.market: [finnhub, rss]
+  crypto.stream: [binance, coinbase]
+  fx.stream: [oanda]
+  macro.series: [fred]

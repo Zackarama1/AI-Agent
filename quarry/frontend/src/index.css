@@ -1,0 +1,85 @@
+@import "tailwindcss";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-700.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-400.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
+
+/* QUARRY design tokens. Our own palette: near-black ground, warm amber accent. */
+@theme {
+  --color-ground: #0a0b0d;
+  --color-bar: #111317;
+  --color-panel: #121418;
+  --color-head: #171a1f;
+  --color-edge: #262a31;
+  --color-rule: #1e2127;
+  --color-ink: #d7dae0;
+  --color-bright: #f4f5f7;
+  --color-dim: #8a919c;
+  --color-soft: #b4bac4;
+  --color-amber: #f5a524;
+  --color-amber-wash: #2a2113;
+  --color-cyan: #56c2e6;
+  --color-violet: #b69cff;
+  --color-up: #3dd68c;
+  --color-down: #ff6b5e;
+  --font-sans: "IBM Plex Sans Condensed", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Colour-blind-safe mode swaps green/red for blue/orange (differ in lightness too). */
+:root[data-cb="true"] {
+  --color-up: #5aa9ff;
+  --color-down: #ff9a3d;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  /* iPad Home Screen app: keep clear of the rounded corners and home indicator. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+}
+
+/* Dockview, re-themed with our tokens. */
+.dockview-theme-quarry {
+  --dv-background-color: var(--color-ground);
+  --dv-paneview-header-border-color: var(--color-edge);
+  --dv-tabs-and-actions-container-background-color: var(--color-head);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--color-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--color-head);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--color-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--color-head);
+  --dv-activegroup-visiblepanel-tab-color: var(--color-bright);
+  --dv-activegroup-hiddenpanel-tab-color: var(--color-dim);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--color-soft);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--color-dim);
+  --dv-separator-border: var(--color-edge);
+  --dv-group-view-background-color: var(--color-panel);
+  --dv-drag-over-background-color: rgb(245 165 36 / 0.12);
+  --dv-drag-over-border-color: var(--color-amber);
+  --dv-tabs-container-scrollbar-color: var(--color-edge);
+  --dv-icon-hover-background-color: var(--color-edge);
+  --dv-tab-divider-color: var(--color-edge);
+  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-tabs-and-actions-container-height: 28px;
+  font-family: var(--font-sans);
+}

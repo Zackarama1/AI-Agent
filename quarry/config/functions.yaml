@@ -1,0 +1,469 @@
+# Terminal function registry: our own codes. `available` flips true when a function ships.
+# Served at /api/functions; the frontend parser, autocomplete and HELP read it.
+functions:
+- code: WEI
+  title: World indices
+  phase: 1
+  group: Overview
+  needs_security: false
+  args: []
+  summary: Major indices by region (ETF proxies where index data is licensed)
+  available: false
+- code: MOST
+  title: Most active
+  phase: 1
+  group: Overview
+  needs_security: false
+  args:
+  - US|LN|AIM
+  summary: Actives, gainers and losers
+  available: false
+- code: XAM
+  title: Cross-asset dashboard
+  phase: 2
+  group: Overview
+  needs_security: false
+  args: []
+  summary: Equities, rates, FX, commodities, crypto at a glance
+  available: false
+- code: HEAT
+  title: Sector heatmap
+  phase: 3
+  group: Overview
+  needs_security: false
+  args:
+  - US|GB
+  summary: Sector and constituent heatmap
+  available: false
+- code: MOV
+  title: Movers + news
+  phase: 4
+  group: Overview
+  needs_security: false
+  args: []
+  summary: Biggest movers with linked news clusters
+  available: false
+- code: DES
+  title: Description
+  phase: 1
+  group: Security
+  needs_security: true
+  args: []
+  summary: Company/instrument description, identifiers and key stats
+  available: false
+- code: GP
+  title: Price chart
+  phase: 1
+  group: Security
+  needs_security: true
+  args:
+  - 1D|5D|1M|6M|1Y|5Y|MAX
+  summary: Daily price chart with events and overlays
+  available: false
+- code: GIP
+  title: Intraday chart
+  phase: 1
+  group: Security
+  needs_security: true
+  args:
+  - 1D|5D
+  summary: Intraday price chart
+  available: false
+- code: HP
+  title: Price history
+  phase: 1
+  group: Security
+  needs_security: true
+  args:
+  - 1M|1Y|5Y
+  summary: Historical price table
+  available: false
+- code: FA
+  title: Financial analysis
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: 10-year financials, as-reported vs standardised
+  available: false
+- code: RV
+  title: Relative value
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Peer comparison on valuation and quality
+  available: false
+- code: EE
+  title: Estimates
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Consensus estimates
+  available: false
+- code: ERN
+  title: Earnings
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Earnings history and surprises
+  available: false
+- code: DVD
+  title: Dividends
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Dividends and buybacks
+  available: false
+- code: HDS
+  title: Holders
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Institutional holders (13F)
+  available: false
+- code: INS
+  title: Insiders
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Insider dealings (Form 4, PDMR)
+  available: false
+- code: CF
+  title: Filings
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Filings browser
+  available: false
+- code: CN
+  title: Company news
+  phase: 4
+  group: Security
+  needs_security: true
+  args: []
+  summary: News for this company
+  available: false
+- code: TRAN
+  title: Transcripts
+  phase: 4
+  group: Security
+  needs_security: true
+  args: []
+  summary: Earnings-call transcripts with AI analysis
+  available: false
+- code: VAL
+  title: Valuation
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: DCF and value-metric workbench
+  available: false
+- code: CRD
+  title: Credit profile
+  phase: 3
+  group: Security
+  needs_security: true
+  args: []
+  summary: Deterministic credit scorecard and memo
+  available: false
+- code: BRF
+  title: AI briefing
+  phase: 4
+  group: Security
+  needs_security: true
+  args: []
+  summary: What moved and why, with cited sources
+  available: false
+- code: FXC
+  title: FX cross matrix
+  phase: 2
+  group: FX & Crypto
+  needs_security: false
+  args: []
+  summary: Cross-rate matrix
+  available: false
+- code: WCR
+  title: Currency ranker
+  phase: 2
+  group: FX & Crypto
+  needs_security: false
+  args:
+  - 1D|1W|1M|YTD
+  summary: Currency performance ranking
+  available: false
+- code: CRY
+  title: Crypto monitor
+  phase: 2
+  group: FX & Crypto
+  needs_security: false
+  args: []
+  summary: Prices by venue, market cap, dominance
+  available: false
+- code: CMD
+  title: Commodities
+  phase: 2
+  group: Commodities
+  needs_security: false
+  args: []
+  summary: Energy, metals and ags (proxies flagged)
+  available: false
+- code: CTS
+  title: Futures term structure
+  phase: 5
+  group: Commodities
+  needs_security: true
+  args: []
+  summary: Futures curve shape
+  available: false
+- code: CRV
+  title: Yield curves
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args:
+  - US|GB|EU
+  summary: Sovereign curves with date compare and spreads
+  available: false
+- code: CRVF
+  title: Curve finder
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args: []
+  summary: Find available curves
+  available: false
+- code: MMR
+  title: Money markets
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args: []
+  summary: Policy and money-market rates
+  available: false
+- code: SPRD
+  title: Spreads
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args: []
+  summary: Credit and sovereign spreads
+  available: false
+- code: ECO
+  title: Economic calendar
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args:
+  - UK|US|EU
+  summary: Releases with surprise colouring
+  available: false
+- code: ECST
+  title: Country stats
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args:
+  - UK|US
+  summary: Key macro statistics by country
+  available: false
+- code: CBK
+  title: Central banks
+  phase: 2
+  group: Rates & Macro
+  needs_security: false
+  args: []
+  summary: Central-bank monitor
+  available: false
+- code: OMON
+  title: Option monitor
+  phase: 5
+  group: Options
+  needs_security: true
+  args: []
+  summary: Option chain monitor
+  available: false
+- code: IVS
+  title: Vol surface
+  phase: 5
+  group: Options
+  needs_security: true
+  args: []
+  summary: Smile, skew, term structure, IV rank
+  available: false
+- code: OSA
+  title: Strategy analyser
+  phase: 5
+  group: Options
+  needs_security: true
+  args: []
+  summary: Option strategy payoff
+  available: false
+- code: NEWS
+  title: News
+  phase: 1
+  group: News
+  needs_security: false
+  args:
+  - TOP|<topic>
+  summary: Ranked news (basic feed in Phase 1)
+  available: false
+- code: RNS
+  title: UK regulatory news
+  phase: 4
+  group: News
+  needs_security: false
+  args: []
+  summary: RNS stream (headline mode until licensed)
+  available: false
+- code: FIL
+  title: Live filings
+  phase: 3
+  group: News
+  needs_security: false
+  args: []
+  summary: Live SEC filings
+  available: false
+- code: EQS
+  title: Equity screener
+  phase: 6
+  group: Screening
+  needs_security: false
+  args: []
+  summary: Build and run screens
+  available: false
+- code: VSCR
+  title: Value screens
+  phase: 6
+  group: Screening
+  needs_security: false
+  args: []
+  summary: Value presets
+  available: false
+- code: CSCR
+  title: Credit screens
+  phase: 6
+  group: Screening
+  needs_security: false
+  args: []
+  summary: Credit presets
+  available: false
+- code: ASK
+  title: Ask
+  phase: 6
+  group: Screening
+  needs_security: false
+  args:
+  - <question>
+  summary: Natural-language query to a validated screen
+  available: false
+- code: NOTE
+  title: Morning note
+  phase: 4
+  group: AI
+  needs_security: false
+  args: []
+  summary: AI morning note
+  available: false
+- code: PORT
+  title: Portfolio
+  phase: 7
+  group: Portfolio
+  needs_security: false
+  args: []
+  summary: Positions, P&L, risk
+  available: false
+- code: WL
+  title: Watchlists
+  phase: 1
+  group: Portfolio
+  needs_security: false
+  args:
+  - <list>
+  summary: Live watchlists
+  available: false
+- code: ALRT
+  title: Alerts
+  phase: 7
+  group: Portfolio
+  needs_security: false
+  args: []
+  summary: Alert rules and events
+  available: false
+- code: HELP
+  title: Help
+  phase: 0
+  group: System
+  needs_security: false
+  args:
+  - <CODE>
+  summary: Function directory and help
+  available: true
+- code: KEYS
+  title: Keyboard & gestures
+  phase: 0
+  group: System
+  needs_security: false
+  args: []
+  summary: Shortcuts and touch gestures
+  available: true
+- code: STAT
+  title: System status
+  phase: 0
+  group: System
+  needs_security: false
+  args: []
+  summary: Provider health, rate limits and budgets
+  available: true
+- code: SET
+  title: Settings
+  phase: 8
+  group: System
+  needs_security: false
+  args: []
+  summary: Preferences
+  available: false
+- code: LIC
+  title: Licences
+  phase: 8
+  group: System
+  needs_security: false
+  args: []
+  summary: Licence matrix for every data source
+  available: false
+- code: LOG
+  title: Logs
+  phase: 8
+  group: System
+  needs_security: false
+  args: []
+  summary: Recent application log
+  available: false
+market_suffixes:
+  US: United States (NYSE/Nasdaq)
+  LN: London Stock Exchange (incl. AIM)
+  GY: Xetra
+  FP: Euronext Paris
+  NA: Euronext Amsterdam
+  SW: SIX Swiss
+  JT: Tokyo
+  HK: Hong Kong
+  AU: ASX
+sector_suffixes:
+  EQ: Equity
+  IX: Index
+  CUR: Currency
+  CMD: Commodity
+  GOV: Government bond
+  CORP: Corporate bond
+  CRY: Crypto
+  OPT: Option
+  FUT: Future
+  MAC: Macro

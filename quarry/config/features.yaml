@@ -1,0 +1,9 @@
+# Feature flags. Paid adapters and unfinished functions stay off until approved.
+features:
+  pwa: true
+  tablet_layout: true
+  paid_ibkr: false
+  paid_alpaca_sip: false
+  paid_eodhd_aio: false
+  ai_layer: false
+  rns_licensed: false
