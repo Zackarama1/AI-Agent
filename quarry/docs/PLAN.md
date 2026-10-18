@@ -280,6 +280,59 @@ no key appears in logs or the frontend bundle.
   verified via the Models API at startup. Pricing is re-checked before P4.
 - `SEC_USER_AGENT="QUARRY/0.1 <your contact email>"`, used from P3.
 
+## 7a. iPad / iOS (added 2026-10-18 at Zack's request)
+
+QUARRY must work well on an iPad. Decision (ADR-0009):
+
+1. **Progressive Web App first.** The same React app is added to the iPad Home
+   Screen from Safari and runs full-screen. It needs no App Store, no Mac and
+   no Apple Developer fee. iOS 16.4+ supports web push for Home Screen apps,
+   which covers alerts.
+2. **Optional native wrapper later** via Capacitor (MIT) for TestFlight/App
+   Store. This needs a Mac with Xcode and an Apple Developer account
+   ($99/yr †). There's no separate Swift codebase.
+3. **Touch-first layout on tablets:**
+   - fixed 1/2/3-pane splits instead of free docking
+   - workspaces switched by swiping
+   - a function-chip row, with the command line kept for a Magic Keyboard
+   - 44px touch targets
+   - pinch, pan and touch-and-hold crosshair on charts (Lightweight Charts
+     supports touch)
+   - swipe actions on watchlist rows
+4. **Hosting changes.** The iPad can't reach `localhost` on a laptop, so the
+   backend must run on an always-on machine (VPS or home server). Access is
+   either over **Tailscale** (recommended; private, nothing exposed publicly)
+   or over HTTPS with password + TOTP. ADR-0010.
+5. **iOS specifics:**
+   - Safari suspends background tabs, so the WS client resyncs on
+     `visibilitychange`/`pageshow`.
+   - No reliance on hover: provenance tooltips become tap-to-reveal.
+   - The layout respects safe-area insets.
+
+Phase 0 gains: PWA manifest + service worker (app shell only, never market
+data), the tablet layout, a Playwright WebKit iPad-viewport E2E, and a VPS/
+Tailscale deploy recipe.
+
+## 7b. Real-time across every asset class
+
+No single free source gives real-time data for everything. The cheapest broad
+route is **one Interactive Brokers account** (non-professional market-data
+subscriptions, accessed via IB Gateway on the server). The free sources fill
+the gaps.
+
+| Asset class | Free (Tier 0) | Real-time upgrade |
+|---|---|---|
+| US stocks/ETFs | Alpaca/Finnhub: real-time IEX only | IBKR US bundle ~$10/mo †, or Alpaca Algo Trader Plus $99 (full SIP + options) |
+| UK/LSE + AIM | Delayed/EOD | IBKR LSE L1 £5/mo non-pro † |
+| Europe/Asia stocks | Delayed/EOD | IBKR per-exchange subscriptions (verify each) |
+| Indices | ETF proxies | IBKR index data (verify) |
+| FX | OANDA practice stream (real-time, indicative) | — (already real-time) |
+| Crypto | Binance/Coinbase public WS (real-time) | — |
+| Futures/commodities | Delayed/proxies | IBKR futures bundles, or Databento CME $199 † |
+| Options | Delayed/EOD | Alpaca AT+ (OPRA) or IBKR OPRA |
+| Rates/curves/macro | FRED, BoE, ECB, ONS, Treasury (daily official data) | Rates futures via IBKR for intraday moves |
+| News | Finnhub, official RSS, Marketaux free | Marketaux $29–49 †; LSE RNS needs a licence |
+
 ## 8. Questions for Zack
 
 1. **Repo placement:** A (new repo, recommended), B (subdirectory here), or C (replace the PoC)?
