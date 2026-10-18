@@ -11,6 +11,7 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ['/insights', /^Insights$/],
   ['/suppliers', /^Suppliers$/],
   ['/collections', /^Collections$/],
+  ['/designs/compare', /Compare designs/],
   ['/settings', /^Settings$/],
   ['/login', /Welcome to the atelier/],
 ];

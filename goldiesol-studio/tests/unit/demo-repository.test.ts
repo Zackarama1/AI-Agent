@@ -39,3 +39,31 @@ describe('demo repository writes', () => {
     expect((await repo.listShapes('bottom')).find((s) => s.id === shapes[1].id)!.times_used).toBe(2);
   });
 });
+
+describe('notes and collections', () => {
+  it('adds pinned notes and resolves them', async () => {
+    const [design] = await repo.listDesigns();
+    const note = await repo.addNote({ design_id: design.id, version_id: design.current_version_id, type: 'change_request', body: 'Lower rise 2 cm', anchor: { x: 0.4, y: 0.6, view: 'front', part: 'bottom' } });
+    expect((await repo.listOpenNotes()).some((n) => n.id === note.id)).toBe(true);
+    await repo.updateNote(note.id, { resolved: true });
+    expect((await repo.listOpenNotes()).some((n) => n.id === note.id)).toBe(false);
+    expect((await repo.getDesign(design.id))!.notes.find((n) => n.id === note.id)?.anchor).toEqual({ x: 0.4, y: 0.6, view: 'front', part: 'bottom' });
+  });
+
+  it('creates collections, assigns designs and archives', async () => {
+    const [design] = await repo.listDesigns();
+    const c = await repo.createCollection({ name: 'Riviera Nights', season: 'Resort 27', description: null });
+    await repo.updateDesign(design.id, { collection_id: c.id });
+    expect((await repo.getCollection(c.id))!.design_count).toBe(1);
+    expect((await repo.listDesigns())[0].collection_name).toBe('Riviera Nights');
+    await repo.updateCollection(c.id, { archived: true });
+    expect((await repo.getCollection(c.id))!.archived).toBe(true);
+  });
+
+  it('fetches a single version only for its own design', async () => {
+    const [design] = await repo.listDesigns();
+    const v = (await repo.getDesign(design.id))!.versions[0];
+    expect((await repo.getVersion(design.id, v.id))?.id).toBe(v.id);
+    expect(await repo.getVersion('other-design', v.id)).toBeNull();
+  });
+});

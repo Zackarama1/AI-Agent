@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { seed } from '../seed';
-import type { Design, DesignVersion, Shape } from '../types';
+import type { Collection, Design, DesignNote, DesignVersion, Shape } from '../types';
 import { compareShapes, DuplicateShapeNameError, type Repository } from './repository';
 
 // In-memory repository over a copy of the seed, used when Supabase isn't
@@ -9,7 +9,9 @@ import { compareShapes, DuplicateShapeNameError, type Repository } from './repos
 type DemoStore = {
   designs: Design[];
   design_versions: DesignVersion[];
+  design_notes: DesignNote[];
   shapes: Shape[];
+  collections: Collection[];
 };
 
 const g = globalThis as unknown as { __goldiesolDemo?: DemoStore };
@@ -18,7 +20,9 @@ function store(): DemoStore {
   g.__goldiesolDemo ??= structuredClone({
     designs: [...seed.designs],
     design_versions: [...seed.design_versions],
+    design_notes: [...seed.design_notes],
     shapes: [...seed.shapes],
+    collections: [...seed.collections],
   });
   return g.__goldiesolDemo;
 }
@@ -38,7 +42,7 @@ export const demoRepository: Repository = {
       .map((d) => ({
         ...d,
         version_count: s.design_versions.filter((v) => v.design_id === d.id).length,
-        collection_name: seed.collections.find((c) => c.id === d.collection_id)?.name ?? null,
+        collection_name: s.collections.find((c) => c.id === d.collection_id)?.name ?? null,
         thumbnail_canvas: s.design_versions.find((v) => v.id === d.current_version_id)?.canvas ?? null,
       }))
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -50,13 +54,18 @@ export const demoRepository: Repository = {
     return {
       design,
       versions: s.design_versions.filter((v) => v.design_id === id).sort((a, b) => b.version_number - a.version_number),
-      notes: seed.design_notes.filter((n) => n.design_id === id),
+      notes: s.design_notes.filter((n) => n.design_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at)),
     };
   },
-  listOpenNotes: async () =>
-    seed.design_notes
+  getVersion: async (designId, versionId) =>
+    store().design_versions.find((v) => v.id === versionId && v.design_id === designId) ?? null,
+  listOpenNotes: async () => {
+    const s = store();
+    return s.design_notes
       .filter((n) => !n.resolved && (n.type === 'change_request' || n.type === 'feedback' || n.type === 'note'))
-      .map((n) => ({ ...n, design_name: store().designs.find((d) => d.id === n.design_id)?.name ?? '' })),
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map((n) => ({ ...n, design_name: s.designs.find((d) => d.id === n.design_id)?.name ?? '' }));
+  },
   listShapes: async (kind) => store().shapes.filter((s) => !kind || s.kind === kind).sort(compareShapes),
   listColours: async () => [...seed.colours],
   listMaterials: async () => [...seed.materials],
@@ -65,8 +74,17 @@ export const demoRepository: Repository = {
     const supplier = seed.suppliers.find((s) => s.id === id);
     return supplier ? { supplier, contacts: [] } : null;
   },
-  listCollections: async () =>
-    seed.collections.map((c) => ({ ...c, design_count: store().designs.filter((d) => d.collection_id === c.id).length })),
+  listCollections: async () => {
+    const s = store();
+    return s.collections
+      .map((c) => ({ ...c, design_count: s.designs.filter((d) => d.collection_id === c.id).length }))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
+  getCollection: async (id) => {
+    const s = store();
+    const c = s.collections.find((x) => x.id === id);
+    return c ? { ...c, design_count: s.designs.filter((d) => d.collection_id === c.id).length } : null;
+  },
   listSizeChart: async () => [...seed.size_chart].sort((a, b) => a.sort_order - b.sort_order),
 
   createDesign: async (input) => {
@@ -99,6 +117,29 @@ export const demoRepository: Repository = {
     const design = store().designs.find((d) => d.id === id);
     if (!design) throw new Error('Design not found');
     Object.assign(design, patch, { updated_at: now() });
+  },
+  addNote: async (input) => {
+    const t = now();
+    const note: DesignNote = { id: randomUUID(), created_at: t, updated_at: t, resolved: false, ...input };
+    store().design_notes.push(note);
+    return note;
+  },
+  updateNote: async (id, patch) => {
+    const note = store().design_notes.find((n) => n.id === id);
+    if (!note) throw new Error('Note not found');
+    Object.assign(note, patch, { updated_at: now() });
+    return note;
+  },
+  createCollection: async (input) => {
+    const t = now();
+    const c: Collection = { id: randomUUID(), created_at: t, updated_at: t, cover_url: null, archived: false, ...input };
+    store().collections.push(c);
+    return c;
+  },
+  updateCollection: async (id, patch) => {
+    const c = store().collections.find((x) => x.id === id);
+    if (!c) throw new Error('Collection not found');
+    Object.assign(c, patch, { updated_at: now() });
   },
   createShape: async (input) => {
     const s = store();

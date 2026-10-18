@@ -1,7 +1,7 @@
 'use client';
 
-import { Grid3x3, Maximize, Minus, Plus, Redo2, Undo2 } from 'lucide-react';
-import { useMemo } from 'react';
+import { Grid3x3, MapPin, Maximize, Minus, Plus, Redo2, Undo2 } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 import { SIZES } from '@/lib/garment/grading';
 import { renderGarmentSvg } from '@/lib/garment/render';
 import type { CanvasView, PiecePart } from '@/lib/garment/types';
@@ -50,6 +50,13 @@ export function CanvasArea() {
   const selection = useEditor((s) => s.selection);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
+  const pinMode = useEditor((s) => s.pinMode);
+  const pendingPin = useEditor((s) => s.pendingPin);
+  const notes = useEditor((s) => s.notes);
+  const focusedNoteId = useEditor((s) => s.focusedNoteId);
+  const surface = useRef<HTMLDivElement>(null);
+  // Pins are numbered across all views so the number matches the Notes list.
+  const pinned = notes.filter((n) => n.anchor);
 
   const svg = useMemo(
     () => renderGarmentSvg(canvas, { view, mode, size, grid, colourHex, selected: selection, annotations: true, idPrefix: 'ed' }),
@@ -58,6 +65,16 @@ export function CanvasArea() {
 
   const onClick = (e: React.MouseEvent) => {
     const target = e.target as Element;
+    if (pinMode && surface.current) {
+      const r = surface.current.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      if (x < 0 || x > 1 || y < 0 || y > 1) return;
+      const part = target.closest('[data-part]')?.getAttribute('data-part') as PiecePart | null;
+      store.getState().setPendingPin({ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, view, ...(part && { part }) });
+      return;
+    }
+    if (target.closest('[data-pin]')) return;
     const emb = target.closest('[data-embellishment]')?.getAttribute('data-embellishment');
     const part = target.closest('[data-part]')?.getAttribute('data-part') as PiecePart | null;
     if (emb) store.getState().select({ part: part ?? undefined, embellishmentId: emb });
@@ -80,6 +97,7 @@ export function CanvasArea() {
           <IconButton label="Zoom in (+)" onClick={() => set({ zoom: zoomBy(zoom, 1) })}><Plus /></IconButton>
           <IconButton label="Fit" onClick={() => set({ zoom: 1 })}><Maximize /></IconButton>
           <IconButton label="Grid (1 cm)" onClick={() => set({ grid: !grid })} active={grid}><Grid3x3 /></IconButton>
+          <IconButton label={pinMode ? 'Cancel pin (Esc)' : 'Pin a note'} onClick={() => store.getState().setPinMode(!pinMode)} active={pinMode}><MapPin /></IconButton>
         </div>
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="preview-size">Preview size</label>
@@ -100,12 +118,53 @@ export function CanvasArea() {
           />
         </div>
       </div>
-      <div className="relative min-h-[360px] flex-1 overflow-auto bg-blush/50" onClick={onClick} data-testid="garment-canvas">
-        <div
-          className="mx-auto p-6 [&>svg]:h-auto [&>svg]:w-full"
-          style={{ width: `calc(min(100%, 640px) * ${zoom})` }}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+      {pinMode && (
+        <p className="border-b border-line bg-rose/30 px-3 py-1.5 text-center text-xs" role="status">
+          Tap the garment where the note belongs. Esc to cancel.
+        </p>
+      )}
+      <div
+        className={cn('relative min-h-[360px] flex-1 overflow-auto bg-blush/50', pinMode && 'cursor-crosshair')}
+        onClick={onClick}
+        data-testid="garment-canvas"
+      >
+        <div className="mx-auto p-6" style={{ width: `calc(min(100%, 640px) * ${zoom})` }}>
+          <div ref={surface} className="relative">
+            <div className="[&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+            {pinned.map((n, i) =>
+              n.anchor!.view === view ? (
+                <button
+                  key={n.id}
+                  type="button"
+                  data-pin
+                  aria-label={`Note ${i + 1}: ${n.body}`}
+                  title={n.body}
+                  onClick={() => {
+                    store.getState().focusNote(n.id);
+                    store.getState().setRightTab('notes');
+                  }}
+                  className={cn(
+                    'absolute flex size-6 -translate-x-1/2 -translate-y-full items-center justify-center rounded-full rounded-bl-none border-2 border-surface text-[11px] font-semibold text-ivory shadow-soft transition-transform hover:scale-110',
+                    n.type === 'change_request' ? 'bg-[#9B1B30]' : 'bg-gold-deep',
+                    n.resolved && 'opacity-40',
+                    focusedNoteId === n.id && 'scale-125 ring-2 ring-champagne',
+                  )}
+                  style={{ left: `${n.anchor!.x * 100}%`, top: `${n.anchor!.y * 100}%` }}
+                >
+                  {i + 1}
+                </button>
+              ) : null,
+            )}
+            {pendingPin && pendingPin.view === view && (
+              <span
+                data-pin
+                className="absolute size-6 -translate-x-1/2 -translate-y-full animate-pulse rounded-full rounded-bl-none border-2 border-surface bg-champagne shadow-soft"
+                style={{ left: `${pendingPin.x * 100}%`, top: `${pendingPin.y * 100}%` }}
+                aria-hidden
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

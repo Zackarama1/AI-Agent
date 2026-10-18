@@ -19,7 +19,6 @@ const AUTOSAVE_MS = 1200;
 
 function useAutosave(designId: string) {
   const store = useEditorStore();
-  const saved = useRef<CanvasState>(store.getState().canvas);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inFlight = useRef(false);
 
@@ -29,13 +28,13 @@ function useAutosave(designId: string) {
         timer.current = setTimeout(flush, 300);
         return;
       }
-      const canvas = store.getState().canvas;
-      if (canvas === saved.current) return;
+      const { canvas, savedCanvas } = store.getState();
+      if (canvas === savedCanvas) return;
       inFlight.current = true;
       store.getState().setSave({ status: 'saving' });
       try {
         const v = await saveDesignVersionAction(designId, canvas);
-        saved.current = canvas;
+        store.getState().markSaved(canvas);
         store.getState().addVersion(v);
         // More edits may have landed while saving.
         store.getState().setSave({ status: store.getState().canvas === canvas ? 'saved' : 'dirty' });
@@ -49,8 +48,10 @@ function useAutosave(designId: string) {
 
     const unsubscribe = store.subscribe((state, prev) => {
       if (state.canvas === prev.canvas) return;
-      store.getState().setSave({ status: 'dirty' });
       clearTimeout(timer.current);
+      // e.g. a restore, which the server saved already
+      if (state.canvas === state.savedCanvas) return store.getState().setSave({ status: 'saved' });
+      store.getState().setSave({ status: 'dirty' });
       timer.current = setTimeout(flush, AUTOSAVE_MS);
     });
     const beforeUnload = (e: BeforeUnloadEvent) => {
@@ -104,7 +105,8 @@ function useShortcuts() {
         s.update((c) => removeEmbellishment(c, id));
         s.select({ part: s.selection.part });
       } else if (key === 'escape') {
-        s.select({ part: s.selection.part });
+        if (s.pinMode) s.setPinMode(false);
+        else s.select({ part: s.selection.part });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -124,9 +126,10 @@ function SaveIndicator() {
   return <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-mist" role="status" data-testid="save-status" data-status={save.status}>{content}</span>;
 }
 
-function TopBar({ design }: { design: Design }) {
+function TopBar({ design, collections }: { design: Design; collections: { id: string; name: string }[] }) {
   const [name, setName] = useState(design.name);
   const [status, setStatus] = useState(design.status);
+  const [collectionId, setCollectionId] = useState(design.collection_id ?? '');
   const [, start] = useTransition();
   const commitName = () => {
     const trimmed = name.trim();
@@ -161,6 +164,18 @@ function TopBar({ design }: { design: Design }) {
       >
         {DESIGN_STATUSES.map((s) => <option key={s} value={s}>{humanise(s)}</option>)}
       </select>
+      <select
+        value={collectionId}
+        aria-label="Collection"
+        onChange={(e) => {
+          setCollectionId(e.target.value);
+          start(() => updateDesignAction(design.id, { collection_id: e.target.value || null }));
+        }}
+        className="h-8 max-w-40 rounded-full border border-line bg-surface px-3 text-xs"
+      >
+        <option value="">No collection</option>
+        {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
       <SaveIndicator />
       <div className="ml-auto flex gap-2">
         <Link href={`/designs/${design.id}/model`} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs hover:border-champagne hover:bg-blush">
@@ -174,13 +189,13 @@ function TopBar({ design }: { design: Design }) {
   );
 }
 
-function Workspace({ design, notes }: { design: Design; notes: DesignNote[] }) {
+function Workspace({ design, collections }: { design: Design; collections: { id: string; name: string }[] }) {
   useAutosave(design.id);
   useShortcuts();
   return (
     // Desktop: fixed-height three-column workspace. Phone/iPad portrait: one scrolling column.
     <div className="flex min-h-dvh flex-col lg:h-dvh">
-      <TopBar design={design} />
+      <TopBar design={design} collections={collections} />
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row lg:overflow-hidden">
         <div className="order-2 border-t border-line lg:order-1 lg:h-full lg:border-t-0">
           <LeftRail />
@@ -189,7 +204,7 @@ function Workspace({ design, notes }: { design: Design; notes: DesignNote[] }) {
           <CanvasArea />
         </div>
         <div className="order-3 border-t border-line lg:h-full lg:border-t-0">
-          <RightPanel notes={notes} />
+          <RightPanel designId={design.id} />
         </div>
       </div>
     </div>
@@ -202,16 +217,18 @@ export function Editor({
   versions,
   notes,
   library,
+  collections,
 }: {
   design: Design;
   canvas: CanvasState;
   versions: VersionEntry[];
   notes: DesignNote[];
   library: EditorLibrary;
+  collections: { id: string; name: string }[];
 }) {
   return (
-    <EditorProvider canvas={canvas} versions={versions} library={library}>
-      <Workspace design={design} notes={notes} />
+    <EditorProvider canvas={canvas} versions={versions} notes={notes} library={library}>
+      <Workspace design={design} collections={collections} />
     </EditorProvider>
   );
 }

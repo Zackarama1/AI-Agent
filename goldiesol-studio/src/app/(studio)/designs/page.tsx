@@ -1,8 +1,7 @@
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
-import { EmptyState } from '@/components/brand/empty-state';
 import { PageHeader } from '@/components/brand/page-header';
-import { DesignCard } from '@/components/designs/design-card';
+import { Library } from '@/components/designs/library';
 import { Button } from '@/components/ui/button';
 import { getRepository } from '@/lib/data';
 
@@ -11,7 +10,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function DesignLibrary() {
   const repo = await getRepository();
-  const designs = await repo.listDesigns();
+  const [designs, collections, shapes, colours] = await Promise.all([
+    repo.listDesigns(),
+    repo.listCollections(),
+    repo.listShapes(),
+    repo.listColours(),
+  ]);
 
   return (
     <>
@@ -25,13 +29,12 @@ export default async function DesignLibrary() {
           </Button>
         }
       />
-      {designs.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {designs.map((d) => <DesignCard key={d.id} design={d}/>)}
-        </div>
-      ) : (
-        <EmptyState title="Your first Goldiesol piece starts here." />
-      )}
+      <Library
+        designs={designs}
+        collections={collections.filter((c) => !c.archived).map(({ id, name }) => ({ id, name }))}
+        shapes={shapes.map(({ id, custom_name, kind }) => ({ id, custom_name, kind }))}
+        colours={colours.map(({ id, name, hex, palette }) => ({ id, name, hex, palette }))}
+      />
     </>
   );
 }

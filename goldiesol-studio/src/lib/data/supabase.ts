@@ -61,9 +61,16 @@ export function supabaseRepository(db: SupabaseClient): Repository {
       ]);
       return { design, versions: rows<DesignVersion>(versions), notes: rows<DesignNote>(notes) };
     },
+    getVersion: async (designId, versionId) =>
+      rows<DesignVersion>(await db.from('design_versions').select('*').eq('id', versionId).eq('design_id', designId).limit(1))[0] ?? null,
     listOpenNotes: async () => {
       const data = rows<DesignNote & { designs: { name: string } | null }>(
-        await db.from('design_notes').select('*, designs(name)').eq('resolved', false).in('type', ['change_request', 'feedback', 'note']),
+        await db
+          .from('design_notes')
+          .select('*, designs(name)')
+          .eq('resolved', false)
+          .in('type', ['change_request', 'feedback', 'note'])
+          .order('created_at', { ascending: false }),
       );
       return data.map(({ designs, ...n }) => ({ ...n, design_name: designs?.name ?? '' }));
     },
@@ -86,6 +93,12 @@ export function supabaseRepository(db: SupabaseClient): Repository {
         await db.from('collections').select('*, designs(count)').order('created_at', { ascending: false }),
       );
       return data.map(({ designs, ...c }) => ({ ...c, design_count: designs[0]?.count ?? 0 }));
+    },
+    getCollection: async (id) => {
+      const [c] = rows<Collection & { designs: { count: number }[] }>(await db.from('collections').select('*, designs(count)').eq('id', id).limit(1));
+      if (!c) return null;
+      const { designs, ...rest } = c;
+      return { ...rest, design_count: designs[0]?.count ?? 0 };
     },
     listSizeChart: async () => rows<SizeChartRow>(await db.from('size_chart').select('*').order('sort_order')),
 
@@ -119,6 +132,10 @@ export function supabaseRepository(db: SupabaseClient): Repository {
       return version;
     },
     updateDesign: async (id, patch) => check(await db.from('designs').update(patch).eq('id', id)),
+    addNote: async (input) => one<DesignNote>(await db.from('design_notes').insert(input).select().single()),
+    updateNote: async (id, patch) => one<DesignNote>(await db.from('design_notes').update(patch).eq('id', id).select().single()),
+    createCollection: async (input) => one<Collection>(await db.from('collections').insert(input).select().single()),
+    updateCollection: async (id, patch) => check(await db.from('collections').update(patch).eq('id', id)),
     createShape: async (input) => {
       const res = await db.from('shapes').insert(input).select().single();
       if (res.error?.code === UNIQUE_VIOLATION) throw new DuplicateShapeNameError(input.custom_name);

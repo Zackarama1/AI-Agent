@@ -1,7 +1,7 @@
 import type { CanvasState } from '../garment/types';
 import type {
-  BrandDna, Collection, Colour, Design, DesignNote, DesignStatus, DesignVersion, Material, Shape, ShapeKind,
-  SizeChartRow, Supplier, SupplierContact,
+  BrandDna, Collection, Colour, Design, DesignNote, DesignVersion, Material, NoteAnchor, NoteType, Shape,
+  ShapeKind, SizeChartRow, Supplier, SupplierContact,
 } from '../types';
 
 export interface DesignSummary extends Design {
@@ -24,6 +24,17 @@ export interface NewVersion {
   change_summary: string;
   svg_snapshot: string;
 }
+
+export interface NewNote {
+  design_id: string;
+  version_id: string | null;
+  type: NoteType;
+  body: string;
+  anchor: NoteAnchor | null;
+}
+
+export type DesignPatch = Partial<Pick<Design, 'name' | 'status' | 'top_shape_id' | 'bottom_shape_id' | 'collection_id' | 'tags'>>;
+export type CollectionPatch = Partial<Pick<Collection, 'name' | 'season' | 'description' | 'archived'>>;
 
 export type NewShape = Pick<Shape, 'kind' | 'base_template' | 'custom_name' | 'params'> & { notes?: string | null };
 
@@ -50,6 +61,7 @@ export interface Repository {
   getBrandDna(): Promise<BrandDna | null>;
   listDesigns(): Promise<DesignSummary[]>;
   getDesign(id: string): Promise<DesignDetail | null>;
+  getVersion(designId: string, versionId: string): Promise<DesignVersion | null>;
   listOpenNotes(): Promise<(DesignNote & { design_name: string })[]>;
   listShapes(kind?: ShapeKind): Promise<Shape[]>;
   listColours(): Promise<Colour[]>;
@@ -57,12 +69,17 @@ export interface Repository {
   listSuppliers(): Promise<Supplier[]>;
   getSupplier(id: string): Promise<{ supplier: Supplier; contacts: SupplierContact[] } | null>;
   listCollections(): Promise<CollectionSummary[]>;
+  getCollection(id: string): Promise<CollectionSummary | null>;
   listSizeChart(): Promise<SizeChartRow[]>;
 
   // Writes. Designs are never deleted — status 'archived' hides them.
   createDesign(input: NewDesign): Promise<Design>;
   saveVersion(designId: string, input: NewVersion): Promise<DesignVersion>;
-  updateDesign(id: string, patch: { name?: string; status?: DesignStatus; top_shape_id?: string | null; bottom_shape_id?: string | null }): Promise<void>;
+  updateDesign(id: string, patch: DesignPatch): Promise<void>;
+  addNote(input: NewNote): Promise<DesignNote>;
+  updateNote(id: string, patch: { resolved?: boolean; body?: string }): Promise<DesignNote>;
+  createCollection(input: { name: string; season: string | null; description: string | null }): Promise<Collection>;
+  updateCollection(id: string, patch: CollectionPatch): Promise<void>;
   createShape(input: NewShape): Promise<Shape>;
   updateShape(id: string, patch: { custom_name?: string; is_favourite?: boolean }): Promise<void>;
   recordShapeUse(ids: string[]): Promise<void>;

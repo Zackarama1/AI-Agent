@@ -7,7 +7,8 @@ async function newDesign(page: Page, name: string) {
   await page.getByRole('radio', { name: /Goldie Tie-Side/ }).click();
   await page.getByPlaceholder('e.g. Riviera Pearl Tri').fill(name);
   await page.getByRole('button', { name: 'Start designing' }).click();
-  await expect(page.getByLabel('Design name')).toHaveValue(name);
+  // Creating a design renders and saves v1 server-side; allow for a busy test server.
+  await expect(page.getByLabel('Design name')).toHaveValue(name, { timeout: 15_000 });
   await expect(page.getByTestId('save-status')).toHaveAttribute('data-status', 'saved');
 }
 

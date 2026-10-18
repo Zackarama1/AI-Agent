@@ -24,7 +24,7 @@ server memory only and disappear when the server restarts.
 | ⌘/Ctrl D | Duplicate the selected detail |
 | Delete / Backspace | Remove the selected detail |
 | + · − · 0 | Zoom in · out · reset |
-| Esc | Deselect |
+| Esc | Deselect, or cancel pin placement |
 
 ### Connect Supabase
 
@@ -74,8 +74,8 @@ src/app/actions/         Server actions (validated with zod)
 |---|---|
 | 1. Foundation: Next.js, Supabase + auth, theme, shell, routes, migrations, seed | ✅ Done |
 | 2. Garment engine + Editor: parametric templates, fabrics/lace/prints, embellishments, hardware, views, autosave versions, Shape Library | ✅ Done |
-| 3. Library & Notes | Next |
-| 4. AI Partner | — |
+| 3. Library & Notes: filters, grid/list/board views, compare, duplicate/branch, collections, pinned notes, version restore | ✅ Done |
+| 4. AI Partner | Next |
 | 5. Insights | — |
 | 6. Model Mode | — |
 | 7. Tech Pack | — |

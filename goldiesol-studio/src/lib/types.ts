@@ -56,14 +56,24 @@ export interface DesignVersion extends Row {
   change_summary: string | null;
 }
 
-export type NoteType = 'note' | 'feedback' | 'change_request' | 'ai_feedback' | 'supplier_feedback';
+export type NoteType = (typeof NOTE_TYPES)[number];
+
+// A pin on the canvas: x, y as 0..1 of the rendered view.
+export interface NoteAnchor {
+  x: number;
+  y: number;
+  view: 'front' | 'back' | 'side';
+  part?: 'top' | 'bottom' | 'one_piece';
+}
+
+export const NOTE_TYPES = ['note', 'feedback', 'change_request', 'ai_feedback', 'supplier_feedback'] as const;
 
 export interface DesignNote extends Row {
   design_id: string;
   version_id: string | null;
   type: NoteType;
   body: string;
-  anchor: { x: number; y: number; part?: string } | null;
+  anchor: NoteAnchor | null;
   resolved: boolean;
 }
 

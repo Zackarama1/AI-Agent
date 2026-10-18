@@ -15,11 +15,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function DesignEditorPage({ params }: Params) {
   const { id } = await params;
   const repo = await getRepository();
-  const [detail, shapes, colours, materials] = await Promise.all([
+  const [detail, shapes, colours, materials, collections] = await Promise.all([
     repo.getDesign(id),
     repo.listShapes(),
     repo.listColours(),
     repo.listMaterials(),
+    repo.listCollections(),
   ]);
   if (!detail) notFound();
   const { design, versions, notes } = detail;
@@ -33,6 +34,7 @@ export default async function DesignEditorPage({ params }: Params) {
       canvas={current?.canvas ?? newCanvas(design.category ?? 'bikini')}
       versions={versions.map(({ id, version_number, change_summary, created_at }) => ({ id, version_number, change_summary, created_at }))}
       notes={notes}
+      collections={collections.filter((c) => !c.archived || c.id === design.collection_id).map(({ id, name }) => ({ id, name }))}
       library={{ shapes, colours, materials, colourHex: Object.fromEntries(colours.map((c) => [c.id, c.hex])) }}
     />
   );

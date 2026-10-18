@@ -3,7 +3,7 @@
 import { createContext, useContext, useState } from 'react';
 import { useStore } from 'zustand';
 import type { CanvasState } from '@/lib/garment/types';
-import type { Colour, Material, Shape } from '@/lib/types';
+import type { Colour, DesignNote, Material, Shape } from '@/lib/types';
 import { createEditorStore, type EditorStore, type VersionEntry } from './store';
 
 export interface EditorLibrary {
@@ -19,15 +19,17 @@ const LibraryContext = createContext<EditorLibrary | null>(null);
 export function EditorProvider({
   canvas,
   versions,
+  notes,
   library,
   children,
 }: {
   canvas: CanvasState;
   versions: VersionEntry[];
+  notes: DesignNote[];
   library: EditorLibrary;
   children: React.ReactNode;
 }) {
-  const [store] = useState(() => createEditorStore(canvas, versions));
+  const [store] = useState(() => createEditorStore(canvas, versions, notes));
   return (
     <StoreContext.Provider value={store}>
       <LibraryContext.Provider value={library}>{children}</LibraryContext.Provider>

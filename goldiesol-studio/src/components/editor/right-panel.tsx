@@ -1,21 +1,26 @@
 'use client';
 
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, MapPin, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { duplicateDesignAction, getVersionAction, restoreVersionAction } from '@/app/actions/designs';
+import { addNoteAction, setNoteResolvedAction } from '@/app/actions/notes';
 import { saveShapeAction } from '@/app/actions/shapes';
+import { GarmentSvg } from '@/components/garment/garment-svg';
 import { AREA_EMBELLISHMENTS, PART_PATHS, withBottomTemplate, withOnePieceTemplate, withTopTemplate } from '@/lib/garment/defaults';
 import {
   duplicateEmbellishment, getPiece, PART_LABEL, partsOf, removeEmbellishment, setParams, updateEmbellishment, updatePiece,
 } from '@/lib/garment/ops';
-import type { BottomParams, BottomTemplate, Embellishment, OnePieceParams, OnePieceTemplate, PiecePart, TopParams, TopTemplate } from '@/lib/garment/types';
-import type { DesignNote } from '@/lib/types';
+import type { BottomParams, BottomTemplate, CanvasState, Embellishment, OnePieceParams, OnePieceTemplate, PiecePart, TopParams, TopTemplate } from '@/lib/garment/types';
 import { cn, formatDate, humanise } from '@/lib/utils';
 import { useEditor, useEditorStore, useLibrary } from './context';
 import { PanelSection, Segmented, Select, Slider, Swatch } from './controls';
 import { ParamControls } from './param-controls';
+import type { RightTab } from './store';
+import type { DesignNote } from '@/lib/types';
 
-const TABS = ['properties', 'ai', 'notes', 'versions'] as const;
-type Tab = (typeof TABS)[number];
+const TABS = ['properties', 'ai', 'notes', 'versions'] as const satisfies readonly RightTab[];
+type Tab = RightTab;
 const TAB_LABEL: Record<Tab, string> = { properties: 'Properties', ai: 'AI Partner', notes: 'Notes', versions: 'Versions' };
 
 function SaveAsShape({ part }: { part: PiecePart }) {
@@ -226,25 +231,223 @@ function PropertiesTab() {
   );
 }
 
-function VersionsTab() {
+function VersionsTab({ designId }: { designId: string }) {
+  const store = useEditorStore();
+  const router = useRouter();
+  const { colourHex } = useLibrary();
   const versions = useEditor((s) => s.versions);
+  const saveStatus = useEditor((s) => s.save.status);
+  const [preview, setPreview] = useState<{ id: string; version_number: number; canvas: CanvasState } | null>(null);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const latest = versions[0]?.id;
+
+  const open = (id: string) =>
+    start(async () => {
+      setError(null);
+      try {
+        setPreview(await getVersionAction(designId, id));
+      } catch {
+        setError('Couldn’t load that version.');
+      }
+    });
+
+  const restore = () =>
+    preview &&
+    start(async () => {
+      const res = await restoreVersionAction(designId, preview.id);
+      store.getState().replaceCanvas(res.canvas);
+      store.getState().addVersion(res.version);
+      setPreview(null);
+    });
+
+  const branch = () =>
+    preview &&
+    start(async () => {
+      const copy = await duplicateDesignAction(designId, preview.id);
+      router.push(`/designs/${copy.id}`);
+    });
+
   return (
     <PanelSection title="Version history">
-      <ol className="flex flex-col gap-3 text-xs" data-testid="version-list">
+      {preview && (
+        <div className="flex flex-col gap-2 rounded-xl border border-champagne bg-blush/60 p-3" data-testid="version-preview">
+          <div className="flex items-center justify-between">
+            <span className="gs-label text-gold-deep">Previewing v{preview.version_number}</span>
+            <button type="button" className="text-xs text-mist hover:text-ink" onClick={() => setPreview(null)}>Close</button>
+          </div>
+          <GarmentSvg canvas={preview.canvas} colourHex={colourHex} idPrefix={`vp-${preview.version_number}`} padCm={2} className="aspect-square rounded-lg bg-surface" />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={pending || preview.id === latest || saveStatus === 'saving'}
+              onClick={restore}
+              className="flex-1 rounded-lg bg-ink px-2 py-1.5 text-xs text-ivory disabled:opacity-40"
+            >
+              {preview.id === latest ? 'Current version' : 'Restore this version'}
+            </button>
+            <button type="button" disabled={pending} onClick={branch} className="flex-1 rounded-lg border border-line px-2 py-1.5 text-xs hover:bg-surface">
+              Branch as new design
+            </button>
+          </div>
+          <p className="text-[11px] text-mist">Restoring saves it as a new version — history is never rewritten.</p>
+        </div>
+      )}
+      {error && <p className="text-xs text-[#9B1B30]" role="alert">{error}</p>}
+      <ol className="flex flex-col gap-1 text-xs" data-testid="version-list">
         {versions.map((v) => (
-          <li key={v.id} className="border-l-2 border-champagne/60 pl-3">
-            <span className="gs-label block">v{v.version_number} · {formatDate(v.created_at)} {new Date(v.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-            {v.change_summary}
+          <li key={v.id}>
+            <button
+              type="button"
+              onClick={() => open(v.id)}
+              className={cn('w-full rounded-lg border-l-2 py-1.5 pl-3 pr-2 text-left hover:bg-blush', preview?.id === v.id ? 'border-gold-deep bg-blush' : 'border-champagne/60')}
+            >
+              <span className="gs-label block">
+                v{v.version_number}{v.id === latest ? ' · current' : ''} · {formatDate(v.created_at)}{' '}
+                {new Date(v.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              {v.change_summary}
+            </button>
           </li>
         ))}
       </ol>
-      <p className="text-[11px] text-mist">Every autosave is a version. Restoring and branching from a version arrive in build phase 3.</p>
+      <p className="text-[11px] text-mist">Every autosave is a version. Open one to preview, restore or branch from it.</p>
     </PanelSection>
   );
 }
 
-export function RightPanel({ notes }: { notes: DesignNote[] }) {
-  const [tab, setTab] = useState<Tab>('properties');
+const NOTE_TYPE_OPTIONS = ['note', 'feedback', 'change_request', 'supplier_feedback'] as const;
+const NOTE_FILTERS = ['open', 'resolved', 'all'] as const;
+
+function NotesTab({ designId }: { designId: string }) {
+  const store = useEditorStore();
+  const notes = useEditor((s) => s.notes);
+  const pendingPin = useEditor((s) => s.pendingPin);
+  const pinMode = useEditor((s) => s.pinMode);
+  const focusedNoteId = useEditor((s) => s.focusedNoteId);
+  const [type, setType] = useState<(typeof NOTE_TYPE_OPTIONS)[number]>('note');
+  const [body, setBody] = useState('');
+  const [filter, setFilter] = useState<(typeof NOTE_FILTERS)[number]>('open');
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const pinNumber = new Map(notes.filter((n) => n.anchor).map((n, i) => [n.id, i + 1]));
+  const shown = notes.filter((n) => (filter === 'all' ? true : filter === 'open' ? !n.resolved : n.resolved));
+
+  const submit = () =>
+    start(async () => {
+      setError(null);
+      try {
+        const note = await addNoteAction({ designId, type, body, anchor: pendingPin });
+        store.getState().upsertNote(note);
+        store.getState().setPendingPin(null);
+        setBody('');
+      } catch {
+        setError('Couldn’t save that note.');
+      }
+    });
+
+  // Optimistic: tick first, then confirm with the server (roll back if it fails).
+  const resolve = (note: DesignNote, resolved: boolean) => {
+    store.getState().upsertNote({ ...note, resolved });
+    start(async () => {
+      try {
+        store.getState().upsertNote(await setNoteResolvedAction(note.id, resolved));
+      } catch {
+        store.getState().upsertNote(note);
+        setError('Couldn’t update that note.');
+      }
+    });
+  };
+
+  return (
+    <>
+      <PanelSection title="Add a note">
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (body.trim()) submit();
+          }}
+        >
+          <Select label="Type" value={type} options={NOTE_TYPE_OPTIONS} onChange={setType} />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={3}
+            maxLength={4000}
+            aria-label="Note text"
+            placeholder={type === 'change_request' ? 'e.g. Lower the front rise by 2 cm' : 'What should we remember about this piece?'}
+            className="rounded-lg border border-line bg-surface p-2 text-xs"
+          />
+          <div className="flex items-center justify-between gap-2">
+            {pendingPin ? (
+              <span className="flex items-center gap-1 text-xs text-gold-deep">
+                <MapPin className="size-3.5" /> Pinned on the {pendingPin.view}
+                <button type="button" aria-label="Remove pin" onClick={() => store.getState().setPendingPin(null)} className="text-mist hover:text-ink">
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => store.getState().setPinMode(!pinMode)} className="flex items-center gap-1 text-xs text-mist hover:text-ink">
+                <MapPin className="size-3.5" /> {pinMode ? 'Tap the canvas…' : 'Pin to the garment'}
+              </button>
+            )}
+            <button type="submit" disabled={pending || !body.trim()} className="rounded-lg bg-ink px-3 py-1.5 text-xs text-ivory disabled:opacity-40">
+              Add
+            </button>
+          </div>
+          {error && <p className="text-xs text-[#9B1B30]" role="alert">{error}</p>}
+        </form>
+      </PanelSection>
+      <PanelSection
+        title="Notes & feedback"
+        aside={<Segmented label="Show" value={filter} options={NOTE_FILTERS.map((f) => ({ value: f, label: humanise(f) }))} onChange={setFilter} />}
+      >
+        {shown.length ? (
+          <ul className="flex flex-col gap-2 text-xs" data-testid="note-list">
+            {shown.map((n) => (
+              <li
+                key={n.id}
+                className={cn('rounded-xl border p-2.5', focusedNoteId === n.id ? 'border-gold-deep bg-blush' : 'border-line', n.resolved && 'opacity-60')}
+                onMouseEnter={() => store.getState().focusNote(n.id)}
+                onMouseLeave={() => store.getState().focusNote(null)}
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className={cn('gs-label', n.type === 'change_request' && 'text-[#9B1B30]')}>
+                    {pinNumber.has(n.id) && (
+                      <button
+                        type="button"
+                        className="mr-1 underline decoration-dotted"
+                        onClick={() => n.anchor && store.getState().set({ view: n.anchor.view })}
+                        aria-label={`Show pin ${pinNumber.get(n.id)} on the ${n.anchor?.view}`}
+                      >
+                        #{pinNumber.get(n.id)}
+                      </button>
+                    )}
+                    {humanise(n.type)}
+                  </span>
+                  <label className="flex items-center gap-1 text-mist">
+                    <input type="checkbox" checked={n.resolved} onChange={(e) => resolve(n, e.target.checked)} className="accent-[var(--gs-gold-deep)]" />
+                    Resolved
+                  </label>
+                </div>
+                <p className={cn(n.resolved && 'line-through decoration-mist/60')}>{n.body}</p>
+                <p className="mt-1 text-[10px] text-mist">{formatDate(n.created_at)}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-mist">{filter === 'open' ? 'Nothing open — lovely.' : 'No notes here.'}</p>
+        )}
+      </PanelSection>
+    </>
+  );
+}
+
+export function RightPanel({ designId }: { designId: string }) {
+  const store = useEditorStore();
+  const tab = useEditor((s) => s.rightTab);
+  const openCount = useEditor((s) => s.notes.filter((n) => !n.resolved).length);
   return (
     <div className="flex min-h-0 flex-col border-line lg:h-full lg:w-80 lg:border-l">
       <div role="tablist" aria-label="Design panels" className="flex shrink-0 overflow-x-auto border-b border-line bg-surface/70">
@@ -254,10 +457,11 @@ export function RightPanel({ notes }: { notes: DesignNote[] }) {
             type="button"
             role="tab"
             aria-selected={tab === t}
-            onClick={() => setTab(t)}
+            onClick={() => store.getState().setRightTab(t)}
             className={cn('flex-1 whitespace-nowrap px-3 py-2.5 text-xs', tab === t ? 'border-b-2 border-gold-deep font-semibold text-ink' : 'text-mist hover:text-ink')}
           >
             {TAB_LABEL[t]}
+            {t === 'notes' && openCount > 0 && <span className="ml-1 rounded-full bg-rose/60 px-1.5 text-[10px]">{openCount}</span>}
           </button>
         ))}
       </div>
@@ -270,24 +474,8 @@ export function RightPanel({ notes }: { notes: DesignNote[] }) {
             </p>
           </PanelSection>
         )}
-        {tab === 'notes' && (
-          <PanelSection title="Notes & feedback">
-            {notes.length ? (
-              <ul className="flex flex-col gap-3 text-xs">
-                {notes.map((n) => (
-                  <li key={n.id}>
-                    <span className="gs-label block">{humanise(n.type)}{n.resolved ? ' · resolved' : ''}</span>
-                    {n.body}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-mist">No notes yet.</p>
-            )}
-            <p className="text-[11px] text-mist">Adding notes, change requests and canvas pins arrives in build phase 3.</p>
-          </PanelSection>
-        )}
-        {tab === 'versions' && <VersionsTab />}
+        {tab === 'notes' && <NotesTab designId={designId} />}
+        {tab === 'versions' && <VersionsTab designId={designId} />}
       </div>
     </div>
   );
