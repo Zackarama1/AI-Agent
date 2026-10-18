@@ -5,6 +5,7 @@ import pytest
 from redis.asyncio import Redis
 
 from quarry.worker.__main__ import heartbeat
+from tests.conftest import FAKE_KEY
 
 pytestmark = pytest.mark.integration
 
@@ -34,7 +35,7 @@ async def test_status_reports_provider_states(client: httpx.AsyncClient) -> None
 
 async def test_status_never_leaks_keys(client: httpx.AsyncClient) -> None:
     r = await client.get("/api/status")
-    assert "test-finnhub-key-123" not in r.text
+    assert FAKE_KEY not in r.text
 
 
 async def test_functions_registry(client: httpx.AsyncClient) -> None:

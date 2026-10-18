@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from quarry.core.settings import Mode
-from tests.conftest import make_settings
+from tests.conftest import FAKE_KEY, make_settings
 
 
 def test_defaults_are_safe() -> None:
@@ -12,9 +12,9 @@ def test_defaults_are_safe() -> None:
 
 
 def test_secrets_are_hidden_and_collected() -> None:
-    s = make_settings(finnhub_api_key="abcd1234secret", fred_api_key="")
-    assert "abcd1234secret" not in repr(s)
-    assert s.secret_values() == ["abcd1234secret"]
+    s = make_settings(finnhub_api_key=FAKE_KEY, fred_api_key="")
+    assert FAKE_KEY not in repr(s)
+    assert s.secret_values() == [FAKE_KEY]
     assert s.key_configured("finnhub_api_key")
     assert not s.key_configured("fred_api_key")
     assert not s.key_configured("alpaca_api_key_id")

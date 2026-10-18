@@ -12,7 +12,7 @@ from quarry.providers.config import (
     load_functions,
     load_providers,
 )
-from tests.conftest import CONFIG_DIR, make_settings
+from tests.conftest import CONFIG_DIR, FAKE_KEY, make_settings
 
 
 def test_shipped_configs_validate() -> None:
@@ -35,7 +35,7 @@ def test_route_skips_unconfigured_providers() -> None:
     providers = load_providers(CONFIG_DIR)
     none_set = make_settings()
     assert [m.id for m in providers.route("quotes.us_equity", none_set)] == []
-    only_finnhub = make_settings(finnhub_api_key="k-123456")
+    only_finnhub = make_settings(finnhub_api_key=FAKE_KEY)
     assert [m.id for m in providers.route("quotes.us_equity", only_finnhub)] == ["finnhub"]
 
 

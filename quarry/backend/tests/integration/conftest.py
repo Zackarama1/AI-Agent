@@ -15,7 +15,7 @@ from quarry.api.app import create_app
 from quarry.core.settings import Settings
 from quarry.storage.cache import make_redis
 from quarry.storage.db import make_engine
-from tests.conftest import TEST_DATABASE_URL, TEST_REDIS_URL, make_settings
+from tests.conftest import FAKE_KEY, TEST_DATABASE_URL, TEST_REDIS_URL, make_settings
 
 BACKEND = Path(__file__).resolve().parents[2]
 
@@ -75,7 +75,7 @@ async def clean_db(migrated: None) -> None:
 
 @pytest.fixture
 def app_settings() -> Settings:
-    return make_settings(alpaca_api_key_id=None, finnhub_api_key="test-finnhub-key-123")
+    return make_settings(alpaca_api_key_id=None, finnhub_api_key=FAKE_KEY)
 
 
 @pytest.fixture
