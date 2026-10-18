@@ -1,32 +1,63 @@
+import { randomUUID } from 'node:crypto';
 import { seed } from '../seed';
-import { compareShapes, type Repository } from './repository';
+import type { Design, DesignVersion, Shape } from '../types';
+import { compareShapes, DuplicateShapeNameError, type Repository } from './repository';
 
-// Read-only repository over the in-memory seed. Used when Supabase isn't configured.
+// In-memory repository over a copy of the seed, used when Supabase isn't
+// configured. Writes live for the life of the server process only — the demo
+// banner says so. Kept on globalThis so dev-server reloads don't reset it.
+type DemoStore = {
+  designs: Design[];
+  design_versions: DesignVersion[];
+  shapes: Shape[];
+};
+
+const g = globalThis as unknown as { __goldiesolDemo?: DemoStore };
+
+function store(): DemoStore {
+  g.__goldiesolDemo ??= structuredClone({
+    designs: [...seed.designs],
+    design_versions: [...seed.design_versions],
+    shapes: [...seed.shapes],
+  });
+  return g.__goldiesolDemo;
+}
+
+export function resetDemoStore() {
+  g.__goldiesolDemo = undefined;
+}
+
+const now = () => new Date().toISOString();
+
 export const demoRepository: Repository = {
   mode: 'demo',
   getBrandDna: async () => seed.brand_dna[0] ?? null,
-  listDesigns: async () =>
-    seed.designs
+  listDesigns: async () => {
+    const s = store();
+    return s.designs
       .map((d) => ({
         ...d,
-        version_count: seed.design_versions.filter((v) => v.design_id === d.id).length,
+        version_count: s.design_versions.filter((v) => v.design_id === d.id).length,
         collection_name: seed.collections.find((c) => c.id === d.collection_id)?.name ?? null,
+        thumbnail_canvas: s.design_versions.find((v) => v.id === d.current_version_id)?.canvas ?? null,
       }))
-      .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  },
   getDesign: async (id) => {
-    const design = seed.designs.find((d) => d.id === id);
+    const s = store();
+    const design = s.designs.find((d) => d.id === id);
     if (!design) return null;
     return {
       design,
-      versions: seed.design_versions.filter((v) => v.design_id === id).sort((a, b) => b.version_number - a.version_number),
+      versions: s.design_versions.filter((v) => v.design_id === id).sort((a, b) => b.version_number - a.version_number),
       notes: seed.design_notes.filter((n) => n.design_id === id),
     };
   },
   listOpenNotes: async () =>
     seed.design_notes
       .filter((n) => !n.resolved && (n.type === 'change_request' || n.type === 'feedback' || n.type === 'note'))
-      .map((n) => ({ ...n, design_name: seed.designs.find((d) => d.id === n.design_id)?.name ?? '' })),
-  listShapes: async (kind) => seed.shapes.filter((s) => !kind || s.kind === kind).sort(compareShapes),
+      .map((n) => ({ ...n, design_name: store().designs.find((d) => d.id === n.design_id)?.name ?? '' })),
+  listShapes: async (kind) => store().shapes.filter((s) => !kind || s.kind === kind).sort(compareShapes),
   listColours: async () => [...seed.colours],
   listMaterials: async () => [...seed.materials],
   listSuppliers: async () => [...seed.suppliers],
@@ -35,6 +66,58 @@ export const demoRepository: Repository = {
     return supplier ? { supplier, contacts: [] } : null;
   },
   listCollections: async () =>
-    seed.collections.map((c) => ({ ...c, design_count: seed.designs.filter((d) => d.collection_id === c.id).length })),
+    seed.collections.map((c) => ({ ...c, design_count: store().designs.filter((d) => d.collection_id === c.id).length })),
   listSizeChart: async () => [...seed.size_chart].sort((a, b) => a.sort_order - b.sort_order),
+
+  createDesign: async (input) => {
+    const s = store();
+    const t = now();
+    const design: Design = {
+      id: randomUUID(), created_at: t, updated_at: t, name: input.name, status: 'in_design', category: input.category,
+      collection_id: input.collection_id ?? null, top_shape_id: input.top_shape_id, bottom_shape_id: input.bottom_shape_id,
+      brief: null, current_version_id: null, tags: [], score: null,
+    };
+    s.designs.push(design);
+    return design;
+  },
+  saveVersion: async (designId, input) => {
+    const s = store();
+    const design = s.designs.find((d) => d.id === designId);
+    if (!design) throw new Error('Design not found');
+    const t = now();
+    const version: DesignVersion = {
+      id: randomUUID(), created_at: t, updated_at: t, design_id: designId,
+      version_number: Math.max(0, ...s.design_versions.filter((v) => v.design_id === designId).map((v) => v.version_number)) + 1,
+      canvas: input.canvas, svg_snapshot: input.svg_snapshot, png_url: null, change_summary: input.change_summary,
+    };
+    s.design_versions.push(version);
+    design.current_version_id = version.id;
+    design.updated_at = t;
+    return version;
+  },
+  updateDesign: async (id, patch) => {
+    const design = store().designs.find((d) => d.id === id);
+    if (!design) throw new Error('Design not found');
+    Object.assign(design, patch, { updated_at: now() });
+  },
+  createShape: async (input) => {
+    const s = store();
+    if (s.shapes.some((x) => x.custom_name.toLowerCase() === input.custom_name.toLowerCase())) throw new DuplicateShapeNameError(input.custom_name);
+    const t = now();
+    const shape: Shape = { id: randomUUID(), created_at: t, updated_at: t, thumbnail_url: null, is_favourite: false, times_used: 0, notes: input.notes ?? null, ...input };
+    s.shapes.push(shape);
+    return shape;
+  },
+  updateShape: async (id, patch) => {
+    const s = store();
+    const shape = s.shapes.find((x) => x.id === id);
+    if (!shape) throw new Error('Shape not found');
+    if (patch.custom_name && s.shapes.some((x) => x.id !== id && x.custom_name.toLowerCase() === patch.custom_name!.toLowerCase())) {
+      throw new DuplicateShapeNameError(patch.custom_name);
+    }
+    Object.assign(shape, patch, { updated_at: now() });
+  },
+  recordShapeUse: async (ids) => {
+    for (const shape of store().shapes) if (ids.includes(shape.id)) shape.times_used += 1;
+  },
 };

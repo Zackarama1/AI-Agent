@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { getRepository } from '@/lib/data';
 
 export const metadata = { title: 'Collections' };
+export const dynamic = 'force-dynamic';
 
 export default async function CollectionsPage() {
   const collections = await (await getRepository()).listCollections();

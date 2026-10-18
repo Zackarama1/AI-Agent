@@ -1,29 +1,21 @@
 import Link from 'next/link';
-import { GarmentGlyph } from '@/components/brand/garment-glyph';
 import { LaceWatermark } from '@/components/brand/lace';
 import { StatusPill } from '@/components/brand/status-pill';
+import { GarmentSvg } from '@/components/garment/garment-svg';
 import type { DesignSummary } from '@/lib/data';
-import type { Shape } from '@/lib/types';
 import { formatDate, humanise } from '@/lib/utils';
 
-export function DesignCard({ design, shapes }: { design: DesignSummary; shapes: Shape[] }) {
-  const top = shapes.find((s) => s.id === design.top_shape_id);
-  const bottom = shapes.find((s) => s.id === design.bottom_shape_id);
+export function DesignCard({ design }: { design: DesignSummary }) {
 
   return (
     <Link
       href={`/designs/${design.id}`}
       className="group block overflow-hidden rounded-[var(--radius-gs)] border border-line bg-surface shadow-soft transition hover:-translate-y-0.5 hover:border-champagne"
     >
-      <div className="relative flex aspect-[4/3] flex-col items-center justify-center gap-1 bg-blush">
+      <div className="relative aspect-[4/3] bg-blush">
         <LaceWatermark />
-        {top || bottom ? (
-          <>
-            {top && <GarmentGlyph kind="top" template={top.base_template} className="relative h-20 w-24" />}
-            {bottom && <GarmentGlyph kind="bottom" template={bottom.base_template} className="relative h-16 w-24" />}
-          </>
-        ) : (
-          <GarmentGlyph kind="one_piece" template="one_piece" className="relative h-28 w-28" />
+        {design.thumbnail_canvas && (
+          <GarmentSvg canvas={design.thumbnail_canvas} idPrefix={`dc-${design.id.slice(0, 8)}`} padCm={3} className="relative h-full w-full p-3" />
         )}
       </div>
       <div className="flex flex-col gap-2 p-4">

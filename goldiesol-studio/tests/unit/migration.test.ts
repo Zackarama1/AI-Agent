@@ -1,6 +1,6 @@
 // Runs the real migration + generated seed against in-process Postgres (PGlite),
 // with minimal stand-ins for the Supabase `auth` and `storage` schemas.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
@@ -40,7 +40,10 @@ async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
 beforeAll(async () => {
   db = new PGlite({ extensions: { vector, pgcrypto } });
   await db.exec(SUPABASE_STUBS);
-  await db.exec(readFileSync(join(__dirname, '../../supabase/migrations/0001_foundation.sql'), 'utf8'));
+  const dir = join(__dirname, '../../supabase/migrations');
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
+    await db.exec(readFileSync(join(dir, file), 'utf8'));
+  }
   await db.exec(buildSeedSql());
   await db.exec(`grant usage on schema public to authenticated; grant all on all tables in schema public to authenticated;`);
   // First sign-up becomes owner of the seeded Goldiesol team; a later uninvited one gets nothing.
@@ -77,6 +80,14 @@ describe('foundation migration + seed', () => {
       const del = await db.query(`delete from public.designs where id = $1`, [d.id]);
       expect(del.affectedRows).toBe(0);
     });
+  });
+
+  it('bumps shape usage only within the caller\'s team', async () => {
+    const { rows: [shape] } = await db.query<{ id: string; times_used: number }>(`select id, times_used from public.shapes where custom_name = 'Goldie Lace Tri'`);
+    await asUser(STRANGER, () => db.query('select public.increment_shape_use($1)', [[shape.id]]));
+    await asUser(FOUNDER, () => db.query('select public.increment_shape_use($1)', [[shape.id]]));
+    const { rows: [after] } = await db.query<{ times_used: number }>('select times_used from public.shapes where id = $1', [shape.id]);
+    expect(after.times_used).toBe(shape.times_used + 1);
   });
 
   it('allows deleting non-archival rows like shapes', async () => {

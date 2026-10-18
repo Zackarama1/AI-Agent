@@ -39,21 +39,47 @@ export interface BottomParams {
 
 export type GarmentCategory = 'bikini' | 'one_piece' | 'monokini' | 'tankini' | 'cover_up';
 
-export type LaceTexture = 'floral' | 'scallop' | 'geometric' | 'eyelash' | 'guipure';
+export interface OnePieceParams {
+  template: OnePieceTemplate;
+  necklineDepthCm: number;    // front neckline depth below the strap point
+  backScoopDepthCm: number;   // back neckline depth below the strap point
+  legCutAngleDeg: number;
+  strapWidthMm: number;
+  cutOutSizeCm: number;       // 0 = no cut-outs
+  backCoverage: BottomParams['backCoverage'];
+  lined: boolean;
+}
+
+export const LACE_TEXTURES = ['floral', 'scallop', 'geometric', 'eyelash', 'guipure'] as const;
+export type LaceTexture = (typeof LACE_TEXTURES)[number];
+
+export const PRINTS = [
+  'ditsy_floral', 'tropical', 'gingham', 'polka', 'stripe', 'abstract_brush',
+  'leopard', 'snake', 'paisley', 'tie_dye', 'watercolour_floral',
+] as const;
+export type PrintId = (typeof PRINTS)[number];
 
 export type Fill =
   | { kind: 'solid'; colourId?: string; hex: string }
-  | { kind: 'print'; imageUrl: string; scale: number; rotationDeg?: number }
-  | { kind: 'lace'; texture: LaceTexture; hex: string; baseHex?: string; opacity?: number }
-  | { kind: 'crochet'; hex: string }
+  | { kind: 'print'; print: PrintId; hex: string; accentHex: string; scale: number }
+  | { kind: 'image'; imageUrl: string; scale: number }
+  | { kind: 'lace'; texture: LaceTexture; hex: string; baseHex?: string }
+  | { kind: 'crochet'; hex: string; baseHex?: string }
   | { kind: 'mesh'; hex: string; opacity: number };
+
+export const EMBELLISHMENT_TYPES = [
+  'lace_trim', 'lace_overlay', 'scallop_edge', 'bead_strand', 'bead_scatter',
+  'pearl', 'bow', 'ring', 'charm', 'ruffle', 'ruching', 'crochet_panel',
+  'embroidery', 'applique_flower', 'contrast_binding', 'logo_hardware',
+] as const;
+export type EmbellishmentType = (typeof EMBELLISHMENT_TYPES)[number];
+
+export type PiecePart = 'top' | 'bottom' | 'one_piece';
 
 export interface Embellishment {
   id: string;
-  type: 'lace_trim' | 'lace_overlay' | 'scallop_edge' | 'bead_strand' | 'bead_scatter'
-      | 'pearl' | 'bow' | 'ring' | 'charm' | 'ruffle' | 'ruching' | 'crochet_panel'
-      | 'embroidery' | 'applique_flower' | 'contrast_binding' | 'logo_hardware';
-  part: 'top' | 'bottom' | 'one_piece' | 'strap' | 'tie';
+  type: EmbellishmentType;
+  part: PiecePart | 'strap' | 'tie';
   path: string;               // which edge/area it follows, e.g. 'cup_upper_edge'
   materialId?: string;
   colourId?: string;
@@ -63,20 +89,36 @@ export interface Embellishment {
   notes?: string;
 }
 
+export const HARDWARE_FINISHES = ['gold', 'rose_gold', 'silver', 'pearl', 'tortoise', 'clear'] as const;
+export type HardwareFinish = (typeof HARDWARE_FINISHES)[number];
+export const HARDWARE_PLACEMENTS = ['centre_front', 'hips', 'straps', 'centre_back', 'tie_ends'] as const;
+export type HardwarePlacement = (typeof HARDWARE_PLACEMENTS)[number];
+
 export interface HardwareItem {
-  type: string;
-  finish: 'gold' | 'rose_gold' | 'silver' | 'pearl' | 'tortoise' | 'clear';
+  id: string;
+  type: 'ring' | 'slider' | 'clasp' | 'toggle' | 'bead_end';
+  finish: HardwareFinish;
   sizeMm: number;
-  placement: string;
+  placement: HardwarePlacement;
 }
+
+export interface PieceState<P> {
+  shapeId?: string;
+  params: P;
+  fill: Fill;
+  lining: Fill;
+  materialId?: string;      // main fabric from the materials library
+}
+
+export type CanvasView = 'front' | 'back' | 'side';
 
 export interface CanvasState {
   category: GarmentCategory;
-  top?: { shapeId?: string; params: TopParams; fill: Fill; lining: Fill };
-  bottom?: { shapeId?: string; params: BottomParams; fill: Fill; lining: Fill };
-  onePiece?: { shapeId?: string; params: Record<string, unknown>; fill: Fill; lining: Fill };
+  top?: PieceState<TopParams>;
+  bottom?: PieceState<BottomParams>;
+  onePiece?: PieceState<OnePieceParams>;
   embellishments: Embellishment[];
   hardware: HardwareItem[];
   views: { front: boolean; back: boolean; side: boolean };
-  annotations: { id: string; x: number; y: number; text: string }[];
+  annotations: { id: string; x: number; y: number; text: string }[];  // x, y as 0..1 of the canvas
 }

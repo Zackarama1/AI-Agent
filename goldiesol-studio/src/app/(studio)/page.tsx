@@ -8,11 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getRepository } from '@/lib/data';
 import { humanise } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 export default async function StudioHome() {
   const repo = await getRepository();
-  const [designs, shapes, notes, suppliers] = await Promise.all([
+  const [designs, notes, suppliers] = await Promise.all([
     repo.listDesigns(),
-    repo.listShapes(),
     repo.listOpenNotes(),
     repo.listSuppliers(),
   ]);
@@ -40,7 +41,7 @@ export default async function StudioHome() {
           <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
             {active.map((d) => (
               <div key={d.id} className="w-64 shrink-0 snap-start sm:w-auto">
-                <DesignCard design={d} shapes={shapes} />
+                <DesignCard design={d} />
               </div>
             ))}
           </div>

@@ -13,7 +13,18 @@ npm run dev                  # http://localhost:3000
 ```
 
 With no Supabase keys the studio runs in **demo mode**: everything renders from the Goldiesol seed data
-(`src/lib/seed`), sign-in is skipped and a banner says so.
+(`src/lib/seed`), sign-in is skipped and a banner says so. In demo mode new designs, versions and shapes live in
+server memory only and disappear when the server restarts.
+
+### Editor shortcuts
+
+| Keys | Action |
+|---|---|
+| ⌘/Ctrl Z · ⇧⌘/Ctrl Z (or Ctrl Y) | Undo · redo |
+| ⌘/Ctrl D | Duplicate the selected detail |
+| Delete / Backspace | Remove the selected detail |
+| + · − · 0 | Zoom in · out · reset |
+| Esc | Deselect |
 
 ### Connect Supabase
 
@@ -24,6 +35,8 @@ With no Supabase keys the studio runs in **demo mode**: everything renders from 
 5. Fill `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and restart.
 6. Sign in with your email (magic link). **The first person to sign in becomes owner of the Goldiesol team.**
    Everyone after that needs a row in `team_invites` first; otherwise they can sign in but see nothing.
+
+Apply every file in `supabase/migrations/` in order (`0002_editor.sql` adds the shape-usage counter).
 
 Row Level Security scopes every table to team members. Designs, versions, notes, tech packs, collections and the
 outreach log have no delete policy, so they can only be archived.
@@ -46,10 +59,13 @@ supabase/migrations/     Postgres schema, RLS, storage buckets
 supabase/seed.sql        Generated seed (brand DNA, shapes, colours, materials, suppliers, size chart, seed design)
 src/lib/seed/            Seed data — the single source of truth
 src/lib/data/            Repository interface; demo (seed) and Supabase implementations
-src/lib/garment/types.ts Parametric garment + canvas types (§5)
+src/lib/garment/         Parametric garment engine: templates/, textures/, render.ts (SVG), grading.ts, schema.ts
+src/components/editor/   Design editor (Zustand store, canvas, left rail, right panel)
 src/components/brand/    Wordmark, lace watermark, empty states, status pills
 src/components/shell/    Sidebar, mobile nav, theme toggle
-src/app/(studio)/        All studio routes (§3)
+src/app/(studio)/        Studio routes (§3)
+src/app/(editor)/        Full-screen editor at /designs/[id]
+src/app/actions/         Server actions (validated with zod)
 ```
 
 ## Build status
@@ -57,8 +73,8 @@ src/app/(studio)/        All studio routes (§3)
 | Phase | Status |
 |---|---|
 | 1. Foundation: Next.js, Supabase + auth, theme, shell, routes, migrations, seed | ✅ Done |
-| 2. Garment engine + Editor | Next |
-| 3. Library & Notes | — |
+| 2. Garment engine + Editor: parametric templates, fabrics/lace/prints, embellishments, hardware, views, autosave versions, Shape Library | ✅ Done |
+| 3. Library & Notes | Next |
 | 4. AI Partner | — |
 | 5. Insights | — |
 | 6. Model Mode | — |

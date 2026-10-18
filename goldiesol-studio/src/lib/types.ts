@@ -1,7 +1,7 @@
 // Row types mirroring the Postgres schema (supabase/migrations). Kept snake_case
 // so Supabase rows can be used directly without a mapping layer.
 
-import type { BottomParams, CanvasState, GarmentCategory, TopParams } from './garment/types';
+import type { BottomParams, CanvasState, GarmentCategory, OnePieceParams, TopParams } from './garment/types';
 
 interface Row {
   id: string;
@@ -24,7 +24,7 @@ export interface Shape extends Row {
   kind: ShapeKind;
   base_template: string;
   custom_name: string;
-  params: TopParams | BottomParams | Record<string, unknown>;
+  params: TopParams | BottomParams | OnePieceParams;
   thumbnail_url: string | null;
   is_favourite: boolean;
   times_used: number;

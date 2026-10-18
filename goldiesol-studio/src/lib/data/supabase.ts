@@ -1,31 +1,55 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CanvasState } from '../garment/types';
 import type {
   BrandDna, Collection, Colour, Design, DesignNote, DesignVersion, Material, Shape, SizeChartRow, Supplier,
   SupplierContact,
 } from '../types';
-import { compareShapes, type Repository } from './repository';
+import { compareShapes, DuplicateShapeNameError, type Repository } from './repository';
 
 function rows<T>(res: { data: unknown; error: { message: string } | null }): T[] {
   if (res.error) throw new Error(res.error.message);
   return (res.data ?? []) as T[];
 }
 
+function one<T>(res: { data: unknown; error: { message: string; code?: string } | null }): T {
+  if (res.error) throw new Error(res.error.message);
+  return res.data as T;
+}
+
+function check(res: { error: { message: string } | null }) {
+  if (res.error) throw new Error(res.error.message);
+}
+
+const UNIQUE_VIOLATION = '23505';
+
+// designs ↔ design_versions are linked twice (design_id and current_version_id),
+// so embeds must name the foreign key.
+const VERSIONS_FK = 'design_versions!design_versions_design_id_fkey';
+const CURRENT_FK = 'design_versions!designs_current_version_fk';
+
 export function supabaseRepository(db: SupabaseClient): Repository {
   return {
     mode: 'supabase',
     getBrandDna: async () => rows<BrandDna>(await db.from('brand_dna').select('*').limit(1))[0] ?? null,
     listDesigns: async () => {
-      const data = rows<Design & { design_versions: { count: number }[]; collections: { name: string } | null }>(
+      const data = rows<
+        Design & {
+          versions: { count: number }[];
+          collections: { name: string } | null;
+          current: { canvas: CanvasState } | null;
+        }
+      >(
         await db
           .from('designs')
-          .select('*, design_versions(count), collections(name)')
+          .select(`*, versions:${VERSIONS_FK}(count), collections(name), current:${CURRENT_FK}(canvas)`)
           .order('updated_at', { ascending: false }),
       );
-      return data.map(({ design_versions, collections, ...d }) => ({
+      return data.map(({ versions, collections, current, ...d }) => ({
         ...d,
-        version_count: design_versions[0]?.count ?? 0,
+        version_count: versions[0]?.count ?? 0,
         collection_name: collections?.name ?? null,
+        thumbnail_canvas: current?.canvas ?? null,
       }));
     },
     getDesign: async (id) => {
@@ -64,5 +88,50 @@ export function supabaseRepository(db: SupabaseClient): Repository {
       return data.map(({ designs, ...c }) => ({ ...c, design_count: designs[0]?.count ?? 0 }));
     },
     listSizeChart: async () => rows<SizeChartRow>(await db.from('size_chart').select('*').order('sort_order')),
+
+    createDesign: async (input) =>
+      one<Design>(
+        await db
+          .from('designs')
+          .insert({
+            name: input.name,
+            category: input.category,
+            status: 'in_design',
+            top_shape_id: input.top_shape_id,
+            bottom_shape_id: input.bottom_shape_id,
+            collection_id: input.collection_id ?? null,
+          })
+          .select()
+          .single(),
+      ),
+    saveVersion: async (designId, input) => {
+      const [latest] = rows<{ version_number: number }>(
+        await db.from('design_versions').select('version_number').eq('design_id', designId).order('version_number', { ascending: false }).limit(1),
+      );
+      const version = one<DesignVersion>(
+        await db
+          .from('design_versions')
+          .insert({ design_id: designId, version_number: (latest?.version_number ?? 0) + 1, ...input })
+          .select()
+          .single(),
+      );
+      check(await db.from('designs').update({ current_version_id: version.id }).eq('id', designId));
+      return version;
+    },
+    updateDesign: async (id, patch) => check(await db.from('designs').update(patch).eq('id', id)),
+    createShape: async (input) => {
+      const res = await db.from('shapes').insert(input).select().single();
+      if (res.error?.code === UNIQUE_VIOLATION) throw new DuplicateShapeNameError(input.custom_name);
+      return one<Shape>(res);
+    },
+    updateShape: async (id, patch) => {
+      const res = await db.from('shapes').update(patch).eq('id', id);
+      if (res.error?.code === UNIQUE_VIOLATION) throw new DuplicateShapeNameError(patch.custom_name ?? '');
+      check(res);
+    },
+    recordShapeUse: async (ids) => {
+      if (!ids.length) return;
+      check(await db.rpc('increment_shape_use', { shape_ids: ids }));
+    },
   };
 }

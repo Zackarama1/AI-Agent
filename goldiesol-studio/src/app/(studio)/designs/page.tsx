@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { getRepository } from '@/lib/data';
 
 export const metadata = { title: 'Designs' };
+export const dynamic = 'force-dynamic';
 
 export default async function DesignLibrary() {
   const repo = await getRepository();
-  const [designs, shapes] = await Promise.all([repo.listDesigns(), repo.listShapes()]);
+  const designs = await repo.listDesigns();
 
   return (
     <>
@@ -26,7 +27,7 @@ export default async function DesignLibrary() {
       />
       {designs.length ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {designs.map((d) => <DesignCard key={d.id} design={d} shapes={shapes} />)}
+          {designs.map((d) => <DesignCard key={d.id} design={d}/>)}
         </div>
       ) : (
         <EmptyState title="Your first Goldiesol piece starts here." />

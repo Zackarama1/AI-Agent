@@ -5,6 +5,7 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ['/designs', /^Designs$/],
   ['/designs/new', /Which top and bottom/],
   ['/shapes', /^Shapes$/],
+  ['/shapes/new', /Create a new shape/],
   ['/materials', /^Materials$/],
   ['/colours', /^Colours$/],
   ['/insights', /^Insights$/],
@@ -28,11 +29,12 @@ for (const [path, heading] of ROUTES) {
   });
 }
 
-test('seed design opens from the library, with its seeded shapes', async ({ page }) => {
+test('seed design opens in the editor, with its seeded shapes', async ({ page }) => {
   await page.goto('/designs');
   await page.getByRole('link', { name: /Blush Lace Triangle/ }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Blush Lace Triangle' })).toBeVisible();
-  await expect(page.getByText('Lace overlay')).toBeVisible();
+  await expect(page.getByLabel('Design name')).toHaveValue('Blush Lace Triangle');
+  await expect(page.locator('[data-testid=garment-canvas] svg')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Lace overlay/ })).toBeVisible();
   await page.goto('/shapes');
   await expect(page.getByRole('heading', { name: 'Goldie Lace Tri' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Goldie Tie-Side' })).toBeVisible();
