@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:seed-sql": "tsx scripts/generate-seed-sql.ts"
+    "db:seed-sql": "tsx scripts/generate-seed-sql.ts",
+    "build:preview": "node scripts/preview/build.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.5.0",
