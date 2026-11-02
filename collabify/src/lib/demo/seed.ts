@@ -44,7 +44,7 @@ export function seed(): DemoDb {
     id: string, businessId: string, title: string, category: string, brief: string, budget: number, hours: number, days: number,
     skills: string[], status: DemoDb['projects'][number]['status'], createdDaysAgo: number, featured = false,
   ) => db.projects.push({
-    id, businessId, title, category, brief, budgetPence: budget * 100, estimatedHours: hours, durationDays: days, skills, status, featured,
+    id, businessId, title, category, brief, budgetPence: budget * 100, estimatedHours: hours, durationDays: days, skills, status, featuredUntil: featured ? daysAhead(5) : null,
     createdAt: daysAgo(createdDaysAgo),
   });
 
@@ -86,7 +86,8 @@ export function seed(): DemoDb {
     const f = feeFor(budget * 100, plan);
     db.contracts.push({
       id, projectId, businessId, studentId, amountPence: f.amountPence, feeRate: f.feeRate, feePence: f.feePence, totalPence: f.totalPence,
-      status, fundedAt: null, deliveredAt: null, releasedAt: null, autoReleaseAt: null, createdAt: daysAgo(created), ...extra,
+      status, fundedAt: null, deliveredAt: null, releasedAt: null, autoReleaseAt: null, createdAt: daysAgo(created),
+      revisionCount: 0, issueReason: null, issueRaisedBy: null, ...extra,
     });
   };
   contract('c_social', 'p_social', 'b_sara', 's_tom', 450, 'free', 'funded', 7, { fundedAt: daysAgo(7) });

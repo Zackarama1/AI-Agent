@@ -6,7 +6,8 @@ import { useQuery } from '@/lib/useQuery';
 import { space } from '@/theme';
 
 export default function MyWork() {
-  const { data: contracts } = useQuery((api) => api.listMyContracts());
+  const { data: all } = useQuery((api) => api.listMyContracts());
+  const contracts = all?.filter((c) => c.status !== 'cancelled');
   const { data: applications } = useQuery((api) => api.listMyApplications());
   const earned = contracts?.filter((c) => c.status === 'released').reduce((s, c) => s + c.amountPence, 0) ?? 0;
   const held = contracts?.filter((c) => ['funded', 'delivered'].includes(c.status)).reduce((s, c) => s + c.amountPence, 0) ?? 0;

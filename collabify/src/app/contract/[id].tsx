@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { ContractPill, FeeBreakdown } from '@/components/domain';
 import { Body, Button, Card, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Row, Screen, StarInput } from '@/components/ui';
 import { getApi, type DeliveryFile } from '@/lib/api';
@@ -44,6 +44,7 @@ function Progress({ status }: { status: Contract['status'] }) {
 }
 
 function Deliver({ contract }: { contract: Contract }) {
+  const changesRequested = contract.revisionCount > 0;
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState<DeliveryFile[]>([]);
   const { busy, error, run } = useAction();
@@ -53,8 +54,12 @@ function Deliver({ contract }: { contract: Contract }) {
   };
   return (
     <Card>
-      <Heading>Deliver your work</Heading>
-      <Muted style={{ marginTop: 4, marginBottom: space.lg }}>Payment is held. Once you deliver, it&apos;s released when they approve, or automatically after {AUTO_RELEASE_DAYS} days.</Muted>
+      <Heading>{changesRequested ? 'Deliver the changes' : 'Deliver your work'}</Heading>
+      <Muted style={{ marginTop: 4, marginBottom: space.lg }}>
+        {changesRequested
+          ? 'They asked for some changes (see Messages). Payment is still held for you.'
+          : `Payment is held. Once you deliver, it\u2019s released when they approve, or automatically after ${AUTO_RELEASE_DAYS} days.`}
+      </Muted>
       <Field testID="delivery-message" value={message} onChangeText={setMessage} multiline placeholder="What you did, plus any links" />
       {files.map((f, i) => (
         <Row key={`${f.name}-${i}`} style={{ marginBottom: space.sm }}>
@@ -73,6 +78,71 @@ function Deliver({ contract }: { contract: Contract }) {
         disabled={message.trim().length < 5 && files.length === 0}
         onPress={() => run(() => getApi().deliver(contract.id, message, files))}
       />
+    </Card>
+  );
+}
+
+function DeliveryFileLink({ path }: { path: string }) {
+  const { colors } = useTheme();
+  const [note, setNote] = useState<string | null>(null);
+  const open = async () => {
+    const url = await getApi().getDeliveryFileUrl(path);
+    if (url) await WebBrowser.openBrowserAsync(url);
+    else setNote('Files aren\u2019t stored in demo mode.');
+  };
+  return (
+    <Pressable onPress={open} accessibilityRole="link" style={{ marginTop: 6 }}>
+      <Row>
+        <Ionicons name="document-attach-outline" size={16} color={colors.primary} />
+        <Body style={{ color: colors.primary }}>{path.split('/').pop()?.replace(/^\d+-/, '')}</Body>
+      </Row>
+      {note ? <Muted style={{ fontSize: 12 }}>{note}</Muted> : null}
+    </Pressable>
+  );
+}
+
+function ReviewDelivery({ contract }: { contract: Contract }) {
+  const approve = useAction();
+  const changes = useAction();
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState('');
+  return (
+    <Card>
+      <Heading>Happy with it?</Heading>
+      <Muted style={{ marginTop: 4, marginBottom: space.lg }}>
+        Approving pays {contract.studentName}.{contract.autoReleaseAt ? ` Otherwise it\u2019s paid automatically in ${daysUntil(contract.autoReleaseAt)} days.` : ''}
+      </Muted>
+      <ErrorText>{approve.error ?? changes.error}</ErrorText>
+      {!asking ? (
+        <>
+          <Button testID="approve" variant="money" hapticKind="success" title="Approve and pay" loading={approve.busy} onPress={() => approve.run(() => getApi().approve(contract.id))} />
+          <Button testID="ask-changes" variant="ghost" title="Ask for changes" onPress={() => setAsking(true)} style={{ marginTop: space.sm }} />
+        </>
+      ) : (
+        <>
+          <Field testID="changes-note" value={note} onChangeText={setNote} multiline placeholder="What should they change?" style={{ minHeight: 90 }} />
+          <Muted style={{ fontSize: 13, marginBottom: space.md }}>Payment stays held. The 7-day auto-payment restarts when they deliver again.</Muted>
+          <Row>
+            <Button testID="send-changes" small title="Send" loading={changes.busy} disabled={note.trim().length < 10} onPress={() => changes.run(async () => { await getApi().requestChanges(contract.id, note); setAsking(false); setNote(''); })} />
+            <Button small variant="ghost" title="Cancel" onPress={() => setAsking(false)} />
+          </Row>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function AdminResolve({ contract }: { contract: Contract }) {
+  const { busy, error, run } = useAction();
+  return (
+    <Card>
+      <Heading>Resolve</Heading>
+      <Muted style={{ marginTop: 4, marginBottom: space.lg }}>Pay {contract.studentName} the full price, or refund {contract.companyName} the full amount they paid.</Muted>
+      <ErrorText>{error}</ErrorText>
+      <Row>
+        <Button testID="resolve-release" small variant="money" title="Pay student" loading={busy} onPress={() => run(() => getApi().adminResolve(contract.id, 'release'))} />
+        <Button testID="resolve-refund" small variant="danger" title="Refund business" disabled={busy} onPress={() => run(() => getApi().adminResolve(contract.id, 'refund'))} />
+      </Row>
     </Card>
   );
 }
@@ -120,7 +190,6 @@ export default function ContractScreen() {
   const { data: contract, error } = useQuery((api) => api.getContract(id), [id]);
   const { data: deliveries } = useQuery((api) => api.listDeliveries(id), [id]);
   const fund = useAction();
-  const approve = useAction();
   const issue = useAction();
   const [issueOpen, setIssueOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -137,7 +206,7 @@ export default function ContractScreen() {
       <Gap size={space.md} />
       <Heading style={{ fontSize: 28, lineHeight: 32, letterSpacing: -0.9, fontFamily: fonts.heavy }}>{contract.projectTitle}</Heading>
       <Muted style={{ marginTop: 4 }}>{isStudent ? contract.companyName : contract.studentName}</Muted>
-      <Progress status={contract.status} />
+      {['cancelled', 'refunded'].includes(contract.status) ? <Gap /> : <Progress status={contract.status} />}
 
       {isStudent ? (
         <Card style={{ backgroundColor: colors.moneySoft, borderWidth: 0 }}>
@@ -170,6 +239,17 @@ export default function ContractScreen() {
             })}
           />
           {getApi().mode === 'demo' ? <Muted style={{ textAlign: 'center', marginTop: space.sm, fontSize: 12 }}>Demo mode: no card is charged.</Muted> : null}
+          <Button
+            testID="cancel-hire"
+            variant="ghost"
+            title="Cancel this hire"
+            disabled={fund.busy}
+            onPress={() => fund.run(async () => {
+              await getApi().cancelContract(contract.id);
+              router.back();
+            })}
+            style={{ marginTop: space.sm }}
+          />
         </Card>
       ) : null}
       {isStudent && contract.status === 'awaiting_funding' ? (
@@ -183,36 +263,33 @@ export default function ContractScreen() {
 
       {deliveries && deliveries.length > 0 ? (
         <Card>
-          <Label>Delivery · {timeAgo(deliveries[deliveries.length - 1].createdAt)}</Label>
-          {deliveries.map((d) => (
-            <View key={d.id} style={{ marginTop: space.sm }}>
+          <Label>{deliveries.length > 1 ? `Deliveries (${deliveries.length})` : 'Delivery'} · {timeAgo(deliveries[deliveries.length - 1].createdAt)}</Label>
+          {[...deliveries].reverse().map((d, i) => (
+            <View key={d.id} style={{ marginTop: space.sm, opacity: i === 0 ? 1 : 0.55 }}>
               {d.message ? <Body>{d.message}</Body> : null}
-              {d.files.map((f) => (
-                <Row key={f} style={{ marginTop: 6 }}>
-                  <Ionicons name="document-attach-outline" size={16} color={colors.primary} />
-                  <Body style={{ color: colors.primary }}>{f.split('/').pop()}</Body>
-                </Row>
-              ))}
+              {d.files.map((f) => <DeliveryFileLink key={f} path={f} />)}
             </View>
           ))}
         </Card>
       ) : null}
 
-      {contract.status === 'delivered' && isBusiness ? (
-        <Card>
-          <Heading>Happy with it?</Heading>
-          <Muted style={{ marginTop: 4, marginBottom: space.lg }}>
-            Approving pays {contract.studentName}.{contract.autoReleaseAt ? ` Otherwise it’s paid automatically in ${daysUntil(contract.autoReleaseAt)} days.` : ''}
-          </Muted>
-          <ErrorText>{approve.error}</ErrorText>
-          <Button testID="approve" variant="money" hapticKind="success" title="Approve and pay" loading={approve.busy} onPress={() => approve.run(() => getApi().approve(contract.id))} />
-        </Card>
-      ) : null}
+      {contract.status === 'delivered' && isBusiness ? <ReviewDelivery contract={contract} /> : null}
       {contract.status === 'delivered' && isStudent && contract.autoReleaseAt ? (
         <Card><Heading>Delivered</Heading><Muted style={{ marginTop: 4 }}>You&apos;ll be paid when they approve, or automatically in {daysUntil(contract.autoReleaseAt)} days.</Muted></Card>
       ) : null}
       {contract.status === 'disputed' ? (
-        <Card style={{ backgroundColor: colors.warningSoft, borderWidth: 0 }}><Heading>We&apos;re looking into it</Heading><Muted style={{ marginTop: 4 }}>The payment stays protected while the Collabify team helps you both sort it out.</Muted></Card>
+        <Card style={{ backgroundColor: colors.warningSoft, borderWidth: 0 }}>
+          <Heading>We&apos;re looking into it</Heading>
+          <Muted style={{ marginTop: 4 }}>The payment stays protected while the Collabify team helps you both sort it out.</Muted>
+          {contract.issueReason ? <Body style={{ marginTop: space.md }}>&ldquo;{contract.issueReason}&rdquo;</Body> : null}
+        </Card>
+      ) : null}
+      {contract.status === 'disputed' && me.role === 'admin' ? <AdminResolve contract={contract} /> : null}
+      {contract.status === 'refunded' ? (
+        <Card><Heading>Refunded</Heading><Muted style={{ marginTop: 4 }}>{isStudent ? 'This project was closed and the business refunded.' : 'You\u2019ve been refunded in full.'}</Muted></Card>
+      ) : null}
+      {contract.status === 'cancelled' ? (
+        <Card><Heading>Cancelled</Heading><Muted style={{ marginTop: 4 }}>This hire was cancelled before payment.</Muted></Card>
       ) : null}
 
       {contract.status === 'released' ? <Reviews contract={contract} isStudent={isStudent} /> : null}

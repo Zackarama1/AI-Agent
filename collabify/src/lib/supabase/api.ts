@@ -41,6 +41,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     if (!data.user) throw new ApiError('Please sign in');
     return data.user.id;
   };
+  /** Call an Edge Function, surfacing its `{ error }` message instead of a generic HTTP error. */
+  const invoke = async <T = Row>(name: string, body: Row): Promise<T> => {
+    const { data, error } = await sb.functions.invoke(name, { body });
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      const detail = ctx && typeof ctx.json === 'function' ? await ctx.json().catch(() => null) : null;
+      throw new ApiError(detail?.error ?? 'Something went wrong. Please try again.');
+    }
+    return data as T;
+  };
   const write = async <T>(p: PromiseLike<{ data: T; error: { message: string } | null }>) => {
     const { data, error } = await p;
     fail(error);
@@ -67,7 +77,9 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     return {
       id: r.id, businessId: r.business_id, companyName: r.business?.company_name ?? '', title: r.title, category: r.category,
       brief: r.brief, budgetPence: r.budget_pence, estimatedHours: Number(r.estimated_hours), durationDays: r.duration_days,
-      skills: r.skills ?? [], status: r.status, featured: r.featured, createdAt: r.created_at, applicantCount: Number(count ?? 0),
+      skills: r.skills ?? [], status: r.status, featuredUntil: r.featured_until,
+      featured: Boolean(r.featured_until && new Date(r.featured_until) > new Date()),
+      createdAt: r.created_at, applicantCount: Number(count ?? 0),
     };
   };
   const toContract = (r: Row): Contract => ({
@@ -75,7 +87,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     companyName: r.business?.company_name ?? '', studentId: r.student_id, studentName: r.student?.profile?.full_name ?? '',
     amountPence: r.amount_pence, feeRate: Number(r.fee_rate), feePence: r.fee_pence, totalPence: r.total_pence,
     status: r.status, fundedAt: r.funded_at, deliveredAt: r.delivered_at, releasedAt: r.released_at,
-    autoReleaseAt: r.auto_release_at, createdAt: r.created_at,
+    autoReleaseAt: r.auto_release_at, revisionCount: r.revision_count ?? 0, issueReason: r.issue_reason ?? null,
+    issueRaisedBy: r.issue_raised_by ?? null, createdAt: r.created_at,
   });
   const toApplication = async (r: Row): Promise<Application> => ({
     id: r.id, projectId: r.project_id, projectTitle: r.project?.title ?? '', studentId: r.student_id,
@@ -152,8 +165,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       await write(sb.from('students').update(row).eq('id', await uid()));
     },
     async startPayoutSetup() {
-      const { data, error } = await sb.functions.invoke('connect-onboarding', { body: {} });
-      fail(error);
+      const data = await invoke('connect-onboarding', {});
       return { url: data?.url };
     },
     async getBusiness(id) {
@@ -172,21 +184,21 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async changePlan(plan: Plan) {
       // Subscriptions are sold on the web (Stripe Billing), not through in-app purchase.
-      const web = process.env.EXPO_PUBLIC_WEB_URL;
-      if (!web) throw new ApiError('Plan changes are not available yet');
-      return { url: `${web.replace(/\/$/, '')}/billing?plan=${plan}` };
+      const data = await invoke('billing-checkout', { kind: 'plan', plan });
+      return { url: data?.url };
     },
 
     // ---------- Projects ----------
     async listOpenProjects(filter = {}) {
       let q = sb.from('projects').select(PROJECT_SELECT).eq('status', 'open')
-        .order('featured', { ascending: false }).order('created_at', { ascending: false }).limit(100);
+        .order('created_at', { ascending: false }).limit(100);
       if (filter.category) q = q.eq('category', filter.category);
       const search = filter.search?.trim().replace(/[%,()]/g, ' ');
       if (search) q = q.or(`title.ilike.%${search}%,brief.ilike.%${search}%`);
       const { data, error } = await q;
       fail(error);
-      return Promise.all((data ?? []).map(toProject));
+      const projects = await Promise.all((data ?? []).map(toProject));
+      return projects.sort((a, b) => Number(b.featured) - Number(a.featured));
     },
     async getProject(id) {
       const { data } = await sb.from('projects').select(PROJECT_SELECT).eq('id', id).maybeSingle();
@@ -205,6 +217,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
         }).select(PROJECT_SELECT).single(),
       );
       return toProject(row as Row);
+    },
+    async featureProject(projectId) {
+      const data = await invoke('billing-checkout', { kind: 'featured', projectId });
+      return { checkoutUrl: data?.url };
+    },
+    async cancelProject(projectId) {
+      await write(sb.rpc('cancel_project', { p_project_id: projectId }));
     },
     async writeBrief(idea, category) {
       const { data, error } = await sb.functions.invoke('write-brief', { body: { idea, category } });
@@ -238,6 +257,12 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async setApplicationStatus(applicationId, status) {
       await write(sb.rpc('set_application_status', { p_application_id: applicationId, p_status: status }));
     },
+    async withdrawApplication(applicationId) {
+      const { data, error } = await sb.from('applications').delete().eq('id', applicationId).select('id');
+      fail(error);
+      if (!data?.length) throw new ApiError('You can\u2019t withdraw this application');
+      changed();
+    },
     async hire(applicationId) {
       const row = (await write(sb.rpc('hire_student', { p_application_id: applicationId }))) as Row;
       const c = await api.getContract(row.id);
@@ -257,12 +282,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return data ? toContract(data) : null;
     },
     async getContractForProject(projectId) {
-      const { data } = await sb.from('contracts').select(CONTRACT_SELECT).eq('project_id', projectId).maybeSingle();
+      const { data } = await sb.from('contracts').select(CONTRACT_SELECT).eq('project_id', projectId).is('cancelled_at', null).maybeSingle();
       return data ? toContract(data) : null;
     },
     async fundContract(contractId) {
-      const { data, error } = await sb.functions.invoke('fund-contract', { body: { contractId } });
-      fail(error);
+      const data = await invoke('fund-contract', { contractId });
       return { checkoutUrl: data?.url };
     },
     async deliver(contractId, message, files) {
@@ -281,10 +305,20 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       fail(error);
       return (data ?? []).map((d): Delivery => ({ id: d.id, contractId: d.contract_id, message: d.message, files: d.file_paths, createdAt: d.created_at }));
     },
-    async approve(contractId) {
-      const { error } = await sb.functions.invoke('release-payment', { body: { contractId } });
+    async getDeliveryFileUrl(path) {
+      const { data, error } = await sb.storage.from('deliveries').createSignedUrl(path, 60 * 60);
       fail(error);
-      changed();
+      return data?.signedUrl ?? null;
+    },
+    async requestChanges(contractId, note) {
+      await write(sb.rpc('request_changes', { p_contract_id: contractId, p_note: note }));
+    },
+    async cancelContract(contractId) {
+      await write(sb.rpc('cancel_contract', { p_contract_id: contractId }));
+    },
+    async approve(contractId) {
+      await invoke('release-payment', { contractId });
+            changed();
     },
     async raiseIssue(contractId, reason) {
       await write(sb.rpc('raise_issue', { p_contract_id: contractId, p_reason: reason }));
@@ -332,6 +366,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       ]);
       const students = await Promise.all((studentRows.data ?? []).map(toStudent));
       const { data: apps } = await sb.from('applications').select('project_id, student_id');
+      const { data: disputes } = await sb.from('contracts').select(CONTRACT_SELECT).eq('status', 'disputed').order('created_at');
       const applied = new Set((apps ?? []).map((a) => `${a.project_id}:${a.student_id}`));
       return {
         metrics: metrics as Awaited<ReturnType<Api['adminOverview']>>['metrics'],
@@ -344,10 +379,15 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
             .sort((a, b) => b.score - a.score)
             .slice(0, 3),
         })),
+        disputes: (disputes ?? []).map(toContract),
       };
     },
     async adminShortlist(projectId, studentId) {
       await write(sb.rpc('admin_shortlist', { p_project_id: projectId, p_student_id: studentId }));
+    },
+    async adminResolve(contractId, outcome) {
+      await invoke('resolve-dispute', { contractId, outcome });
+            changed();
     },
   };
   return api;

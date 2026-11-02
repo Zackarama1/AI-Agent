@@ -1,0 +1,139 @@
+import { describe, expect, it } from '@jest/globals';
+import { freshApi, signIn } from '../demo/testing';
+
+const MAYA = 'maya@student.demo.ac.uk';
+const SARA = 'sara@brewbox.demo';
+
+describe('demo store: the full project lifecycle', () => {
+  it('hire → pay → deliver → approve → blind reviews', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const contract = await api.hire('a3'); // Maya on the £900 account page project, Free plan
+    expect(contract).toMatchObject({ amountPence: 90000, feePence: 10800, totalPence: 100800, status: 'awaiting_funding' });
+    await expect(api.deliver(contract.id, 'too early', [])).rejects.toThrow();
+
+    await api.fundContract(contract.id);
+    await signIn(api, MAYA);
+    await api.deliver(contract.id, 'All done, preview link inside.', []);
+    const delivered = await api.getContract(contract.id);
+    expect(delivered?.status).toBe('delivered');
+    expect(new Date(delivered!.autoReleaseAt!).getTime()).toBeGreaterThan(Date.now() + 6.9 * 86400000);
+
+    await signIn(api, SARA, 'business');
+    await api.approve(contract.id);
+    expect((await api.getContract(contract.id))?.status).toBe('released');
+
+    await api.submitReview(contract.id, 5, 'Great');
+    await signIn(api, MAYA);
+    expect((await api.getContractReviews(contract.id)).theirs).toBeNull();
+    await api.submitReview(contract.id, 4, 'Nice client');
+    expect((await api.getContractReviews(contract.id)).theirs?.rating).toBe(5);
+  });
+
+  it('rejects budgets below £12.71/hour and non-.ac.uk students', async () => {
+    const api = freshApi();
+    await expect(api.requestCode('someone@gmail.com', 'student')).rejects.toThrow('.ac.uk');
+    await signIn(api, SARA, 'business');
+    await expect(
+      api.createProject({ title: 'Cheap logo', category: 'Design', brief: 'A logo with a couple of concepts for our new brand.', budgetPence: 10000, estimatedHours: 10, durationDays: 7, skills: [] }),
+    ).rejects.toThrow('£12.71');
+  });
+
+  it('stops students acting as businesses', async () => {
+    const api = freshApi();
+    await signIn(api, MAYA);
+    await expect(api.hire('a3')).rejects.toThrow();
+    await expect(api.listApplicants('p_portal')).rejects.toThrow();
+  });
+});
+
+describe('demo store: revisions, cancellations, disputes, featuring', () => {
+  const TOM = 'tom@student.demo.ac.uk';
+  const ADMIN = 'admin@collabify.demo';
+
+  it('asking for changes keeps payment held and pauses auto-release', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const c = await api.hire('a3');
+    await api.fundContract(c.id);
+    await signIn(api, MAYA);
+    await api.deliver(c.id, 'First version is ready.', []);
+    await signIn(api, SARA, 'business');
+    await expect(api.requestChanges(c.id, 'short')).rejects.toThrow();
+    await api.requestChanges(c.id, 'Please make the buttons bigger.');
+    const after = await api.getContract(c.id);
+    expect(after).toMatchObject({ status: 'funded', autoReleaseAt: null, revisionCount: 1 });
+    expect((await api.listMessages(c.id)).at(-1)?.body).toMatch(/^Changes requested/);
+    await signIn(api, MAYA);
+    await api.deliver(c.id, 'Buttons are bigger now.', []);
+    expect((await api.getContract(c.id))?.status).toBe('delivered');
+  });
+
+  it('cancelling an unpaid hire reopens the project and restores other applicants', async () => {
+    const api = freshApi();
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    const c = await api.hire('a2'); // Maya on the logo project; Ravi (a1) gets auto-declined
+    expect((await api.listApplicants('p_logo')).find((a) => a.id === 'a1')?.status).toBe('declined');
+    await api.cancelContract(c.id);
+    expect((await api.getProject('p_logo'))?.status).toBe('open');
+    const apps = await api.listApplicants('p_logo');
+    expect(apps.find((a) => a.id === 'a1')?.status).toBe('applied');
+    expect(apps.find((a) => a.id === 'a2')?.status).toBe('shortlisted');
+    expect(await api.getContractForProject('p_logo')).toBeNull();
+    await api.hire('a1'); // can hire someone else
+  });
+
+  it('paid hires cannot be cancelled', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    await expect(api.cancelContract('c_social')).rejects.toThrow('Report a problem');
+  });
+
+  it('students withdraw applications; businesses cancel open projects', async () => {
+    const api = freshApi();
+    await signIn(api, MAYA);
+    await api.withdrawApplication('a3');
+    expect(await api.getMyApplication('p_portal')).toBeNull();
+    await signIn(api, SARA, 'business');
+    await api.cancelProject('p_survey');
+    expect((await api.listOpenProjects()).some((p) => p.id === 'p_survey')).toBe(false);
+  });
+
+  it('featuring pins a project to the top for 7 days', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    await api.featureProject('p_survey');
+    const top = (await api.listOpenProjects())[0];
+    expect(top.featured).toBe(true);
+    const featuredIds = (await api.listOpenProjects()).filter((p) => p.featured).map((p) => p.id);
+    expect(featuredIds).toContain('p_survey');
+    const until = new Date((await api.getProject('p_survey'))!.featuredUntil!).getTime();
+    expect(until - Date.now()).toBeGreaterThan(6.9 * 86400000);
+  });
+
+  it('admin resolves a reported problem either way', async () => {
+    const api = freshApi();
+    await signIn(api, TOM);
+    await api.raiseIssue('c_social', 'The client stopped replying to messages.');
+    await signIn(api, ADMIN, 'business');
+    const { disputes } = await api.adminOverview();
+    expect(disputes.map((d) => d.id)).toEqual(['c_social']);
+    expect(disputes[0].issueReason).toMatch(/stopped replying/);
+    await api.adminResolve('c_social', 'refund');
+    expect((await api.getContract('c_social'))?.status).toBe('refunded');
+    await expect(api.adminResolve('c_social', 'release')).rejects.toThrow();
+
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    await api.raiseIssue('c_churn', 'The dashboard is missing half the data.');
+    await signIn(api, ADMIN, 'business');
+    await api.adminResolve('c_churn', 'release');
+    expect((await api.getContract('c_churn'))?.status).toBe('released');
+  });
+
+  it('only admins can resolve', async () => {
+    const api = freshApi();
+    await signIn(api, TOM);
+    await api.raiseIssue('c_social', 'The client stopped replying to messages.');
+    await expect(api.adminResolve('c_social', 'release')).rejects.toThrow();
+  });
+});

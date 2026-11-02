@@ -51,6 +51,8 @@ export type Project = {
   durationDays: number;
   skills: string[];
   status: ProjectStatus;
+  /** Featured (paid, £19) listings sit at the top of the feed until this time. */
+  featuredUntil: string | null;
   featured: boolean;
   createdAt: string;
   applicantCount: number;
@@ -71,7 +73,7 @@ export type Application = {
   createdAt: string;
 };
 
-export type ContractStatus = 'awaiting_funding' | 'funded' | 'delivered' | 'released' | 'refunded' | 'disputed';
+export type ContractStatus = 'awaiting_funding' | 'funded' | 'delivered' | 'released' | 'refunded' | 'disputed' | 'cancelled';
 
 export type Contract = {
   id: string;
@@ -90,6 +92,10 @@ export type Contract = {
   deliveredAt: string | null;
   releasedAt: string | null;
   autoReleaseAt: string | null;
+  /** Times the business has asked for changes after a delivery. */
+  revisionCount: number;
+  issueReason: string | null;
+  issueRaisedBy: string | null;
   createdAt: string;
 };
 
@@ -114,4 +120,5 @@ export type AdminOverview = {
     feeRevenuePence: number;
   };
   unmatched: { project: Project; suggestions: { student: Student; score: number }[] }[];
+  disputes: Contract[];
 };

@@ -1,10 +1,11 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { FeeBreakdown, ProjectPill } from '@/components/domain';
 import { Avatar, Body, Button, Card, Chips, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Pill, Row, Screen, Stars } from '@/components/ui';
 import { getApi } from '@/lib/api';
-import { formatGBP, hourlyRatePence } from '@/lib/fees';
+import { FEATURED_DAYS, FEATURED_LISTING_PENCE, formatGBP, hourlyRatePence } from '@/lib/fees';
 import { APPLICATION_LABEL, timeAgo } from '@/lib/format';
 import { matchScore } from '@/lib/matching';
 import { useMe } from '@/lib/session';
@@ -27,6 +28,10 @@ function ApplyBox({ project }: { project: Project }) {
           <Pill label={APPLICATION_LABEL[mine.status]} tone={mine.status === 'shortlisted' ? 'primary' : 'neutral'} />
         </Row>
         <Muted style={{ marginTop: space.sm }}>{mine.pitch}</Muted>
+        <ErrorText>{error}</ErrorText>
+        {['applied', 'shortlisted'].includes(mine.status) ? (
+          <Button testID="withdraw" small variant="ghost" title="Withdraw application" loading={busy} onPress={() => run(() => getApi().withdrawApplication(mine.id))} style={{ alignSelf: 'flex-start', marginTop: space.md }} />
+        ) : null}
       </Card>
     );
   }
@@ -96,6 +101,48 @@ function Applicant({ a, project }: { a: Application; project: Project }) {
   );
 }
 
+function OwnerActions({ project }: { project: Project }) {
+  const feature = useAction();
+  const cancel = useAction();
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  if (project.status !== 'open') return null;
+  return (
+    <Card>
+      {project.featured && project.featuredUntil ? (
+        <Body>Featured until {new Date(project.featuredUntil).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Body>
+      ) : (
+        <>
+          <Heading>Get seen first</Heading>
+          <Muted style={{ marginTop: 4, marginBottom: space.md }}>Pin this project to the top of the feed for {FEATURED_DAYS} days.</Muted>
+          <ErrorText>{feature.error}</ErrorText>
+          <Button
+            testID="feature"
+            small
+            icon="star"
+            title={`Feature for ${formatGBP(FEATURED_LISTING_PENCE)}`}
+            loading={feature.busy}
+            style={{ alignSelf: 'flex-start' }}
+            onPress={() => feature.run(async () => {
+              const { checkoutUrl } = await getApi().featureProject(project.id);
+              if (checkoutUrl) await WebBrowser.openBrowserAsync(checkoutUrl);
+            })}
+          />
+        </>
+      )}
+      <ErrorText>{cancel.error}</ErrorText>
+      {!confirmCancel ? (
+        <Button small variant="ghost" title="Cancel project" onPress={() => setConfirmCancel(true)} style={{ alignSelf: 'flex-start', marginTop: space.md }} />
+      ) : (
+        <Row style={{ marginTop: space.md }}>
+          <Muted style={{ flex: 1 }}>Close it and let applicants know?</Muted>
+          <Button testID="confirm-cancel-project" small variant="danger" title="Cancel project" loading={cancel.busy} onPress={() => cancel.run(() => getApi().cancelProject(project.id))} />
+          <Button small variant="ghost" title="Keep" onPress={() => setConfirmCancel(false)} />
+        </Row>
+      )}
+    </Card>
+  );
+}
+
 function OwnerView({ project }: { project: Project }) {
   const { data: applicants } = useQuery((api) => api.listApplicants(project.id), [project.id]);
   const { data: contract } = useQuery((api) => api.getContractForProject(project.id), [project.id]);
@@ -103,6 +150,7 @@ function OwnerView({ project }: { project: Project }) {
   return (
     <View>
       {contract ? <Button title="Open project with your student" onPress={() => router.push(`/contract/${contract.id}`)} style={{ marginBottom: space.xl }} /> : null}
+      <OwnerActions project={project} />
       {project.status === 'open' && business ? (
         <Card>
           <Label style={{ marginBottom: space.sm }}>When you hire</Label>
@@ -160,7 +208,7 @@ export default function ProjectDetail() {
       <Card style={{ backgroundColor: colors.surfaceAlt, borderWidth: 0 }}>
         <Body>{project.brief}</Body>
         <Gap size={space.lg} />
-        <Chips items={project.skills} />
+        <Chips items={project.skills} onGrey />
         <Muted style={{ marginTop: space.lg, fontSize: 13 }}>Due within {project.durationDays} days of starting</Muted>
       </Card>
       <Row gap={6} style={{ marginBottom: space.xl, marginTop: space.sm }}>

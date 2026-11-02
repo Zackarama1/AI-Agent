@@ -1,5 +1,5 @@
 import { ApiError, type Api, type OnboardingInput } from '../api';
-import { AUTO_RELEASE_DAYS, feeFor, isUkUniversityEmail, meetsMinimumRate, type Plan } from '../fees';
+import { AUTO_RELEASE_DAYS, FEATURED_DAYS, feeFor, isUkUniversityEmail, meetsMinimumRate, type Plan } from '../fees';
 import { matchScore } from '../matching';
 import { templateBrief } from '../brief';
 import type {
@@ -18,8 +18,12 @@ export type DemoUser = Profile & {
   student?: Omit<Student, 'id' | 'fullName' | 'verified' | 'rating' | 'completedCount'> & { private: StudentPrivate };
   business?: Omit<Business, 'id' | 'fullName' | 'rating'>;
 };
-export type DemoProject = Omit<Project, 'companyName' | 'applicantCount'>;
-export type DemoApplication = { id: string; projectId: string; studentId: string; pitch: string; status: ApplicationStatus; createdAt: string };
+export type DemoProject = Omit<Project, 'companyName' | 'applicantCount' | 'featured'>;
+export type DemoApplication = {
+  id: string; projectId: string; studentId: string; pitch: string; status: ApplicationStatus; createdAt: string;
+  /** Declined automatically when someone else was hired; restored if that hire is cancelled. */
+  autoDeclined?: boolean;
+};
 export type DemoContract = Omit<Contract, 'projectTitle' | 'companyName' | 'studentName'>;
 
 export type DemoDb = {
@@ -92,8 +96,10 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     plan: u.business!.plan,
     rating: ratingFor(u.id),
   });
+  const isFeatured = (p: DemoProject) => Boolean(p.featuredUntil && new Date(p.featuredUntil) > new Date());
   const toProject = (p: DemoProject): Project => ({
     ...p,
+    featured: isFeatured(p),
     companyName: user(p.businessId)?.business?.companyName ?? 'Unknown',
     applicantCount: db.applications.filter((a) => a.projectId === p.id && a.status !== 'declined').length,
   });
@@ -247,7 +253,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         .filter((p) => p.status === 'open')
         .filter((p) => !filter.category || p.category === filter.category)
         .filter((p) => !q || `${p.title} ${p.brief} ${p.skills.join(' ')}`.toLowerCase().includes(q))
-        .sort((a, b) => Number(b.featured) - Number(a.featured) || b.createdAt.localeCompare(a.createdAt))
+        .sort((a, b) => Number(isFeatured(b)) - Number(isFeatured(a)) || b.createdAt.localeCompare(a.createdAt))
         .map(toProject);
     },
     async getProject(pid) {
@@ -269,7 +275,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       const p: DemoProject = {
         id: id('p'), businessId: u.id, title: input.title.trim(), category: input.category, brief: input.brief.trim(),
         budgetPence: input.budgetPence, estimatedHours: input.estimatedHours, durationDays: input.durationDays,
-        skills: input.skills, status: 'open', featured: Boolean(input.featured), createdAt: now(),
+        skills: input.skills, status: 'open', featuredUntil: null, createdAt: now(),
       };
       db.projects.push(p);
       changed();
@@ -278,6 +284,26 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     async writeBrief(idea, category) {
       await new Promise((r) => setTimeout(r, 400));
       return templateBrief(idea, category);
+    },
+    async featureProject(projectId) {
+      const u = requireRole('business');
+      const p = db.projects.find((x) => x.id === projectId);
+      if (!p || p.businessId !== u.id) throw new ApiError('Not your project');
+      if (p.status !== 'open') throw new ApiError('Only open projects can be featured');
+      const from = isFeatured(p) ? new Date(p.featuredUntil!).getTime() : Date.now();
+      p.featuredUntil = new Date(from + FEATURED_DAYS * 86400000).toISOString();
+      changed();
+      return {};
+    },
+    async cancelProject(projectId) {
+      const u = requireRole('business');
+      const p = db.projects.find((x) => x.id === projectId);
+      if (!p || p.businessId !== u.id) throw new ApiError('Not your project');
+      if (p.status !== 'open') throw new ApiError('Only open projects can be cancelled');
+      p.status = 'cancelled';
+      p.featuredUntil = null;
+      db.applications.filter((a) => a.projectId === p.id && a.status !== 'declined').forEach((a) => (a.status = 'declined'));
+      changed();
     },
 
     // ---------- Applications ----------
@@ -318,6 +344,14 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       a.status = status;
       changed();
     },
+    async withdrawApplication(applicationId) {
+      const u = requireRole('student');
+      const i = db.applications.findIndex((x) => x.id === applicationId && x.studentId === u.id);
+      if (i < 0) throw new ApiError('Application not found');
+      if (!['applied', 'shortlisted'].includes(db.applications[i].status)) throw new ApiError('You can\u2019t withdraw this application');
+      db.applications.splice(i, 1);
+      changed();
+    },
     async hire(applicationId) {
       // Mirrors the hire_student() security-definer function in the database.
       const u = requireRole('business');
@@ -331,10 +365,14 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         id: id('c'), projectId: p.id, businessId: u.id, studentId: a.studentId, amountPence: fee.amountPence,
         feeRate: fee.feeRate, feePence: fee.feePence, totalPence: fee.totalPence, status: 'awaiting_funding',
         fundedAt: null, deliveredAt: null, releasedAt: null, autoReleaseAt: null, createdAt: now(),
+        revisionCount: 0, issueReason: null, issueRaisedBy: null,
       };
       db.contracts.push(c);
       a.status = 'hired';
-      db.applications.filter((x) => x.projectId === p.id && x.id !== a.id && x.status !== 'declined').forEach((x) => (x.status = 'declined'));
+      db.applications.filter((x) => x.projectId === p.id && x.id !== a.id && x.status !== 'declined').forEach((x) => {
+        x.status = 'declined';
+        x.autoDeclined = true;
+      });
       p.status = 'in_progress';
       changed();
       return toContract(c);
@@ -353,7 +391,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     },
     async getContractForProject(projectId) {
       const u = me();
-      const c = db.contracts.find((x) => x.projectId === projectId && (x.businessId === u.id || x.studentId === u.id || u.role === 'admin'));
+      const c = db.contracts.find((x) => x.projectId === projectId && x.status !== 'cancelled' && (x.businessId === u.id || x.studentId === u.id || u.role === 'admin'));
       return c ? toContract(c) : null;
     },
     async fundContract(cid) {
@@ -382,6 +420,37 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       contractFor(cid);
       return db.deliveries.filter((d) => d.contractId === cid);
     },
+    async getDeliveryFileUrl() {
+      return null; // demo mode keeps file names only
+    },
+    async requestChanges(cid, note) {
+      const c = contractFor(cid);
+      const u = me();
+      if (c.businessId !== u.id) throw new ApiError('Only the business can ask for changes');
+      if (c.status !== 'delivered') throw new ApiError('You can ask for changes after a delivery');
+      if (note.trim().length < 10) throw new ApiError('Tell them what to change');
+      setContractStatus(c, 'funded');
+      c.autoReleaseAt = null;
+      c.revisionCount += 1;
+      setProjectStatus(c.projectId, 'in_progress');
+      db.messages.push({ id: id('m'), contractId: c.id, senderId: u.id, body: `Changes requested: ${note.trim()}`, createdAt: now() });
+      changed();
+    },
+    async cancelContract(cid) {
+      const c = contractFor(cid);
+      if (c.businessId !== me().id) throw new ApiError('Only the business can cancel');
+      if (c.status !== 'awaiting_funding') throw new ApiError('Paid projects can\u2019t be cancelled. Report a problem instead.');
+      setContractStatus(c, 'cancelled');
+      setProjectStatus(c.projectId, 'open');
+      for (const a of db.applications.filter((x) => x.projectId === c.projectId)) {
+        if (a.studentId === c.studentId) a.status = 'shortlisted';
+        else if (a.autoDeclined) {
+          a.status = 'applied';
+          a.autoDeclined = false;
+        }
+      }
+      changed();
+    },
     async approve(cid) {
       const c = contractFor(cid);
       if (c.businessId !== me().id) throw new ApiError('Only the business can approve');
@@ -395,6 +464,8 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       if (reason.trim().length < 10) throw new ApiError('Tell us a little more');
       setContractStatus(c, 'disputed');
       c.autoReleaseAt = null;
+      c.issueReason = reason.trim();
+      c.issueRaisedBy = me().id;
       changed();
     },
 
@@ -469,6 +540,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
               .sort((a, b) => b.score - a.score)
               .slice(0, 3),
           })),
+        disputes: db.contracts.filter((c) => c.status === 'disputed').map(toContract),
       };
     },
     async adminShortlist(projectId, studentId) {
@@ -478,6 +550,18 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         id: id('a'), projectId, studentId, status: 'shortlisted', createdAt: now(),
         pitch: 'Recommended by the Collabify team as a strong match for this project.',
       });
+      changed();
+    },
+    async adminResolve(cid, outcome) {
+      requireRole('admin');
+      const c = db.contracts.find((x) => x.id === cid);
+      if (!c || c.status !== 'disputed') throw new ApiError('This project isn\u2019t under review');
+      if (outcome === 'release') {
+        release(c);
+      } else {
+        setContractStatus(c, 'refunded');
+        setProjectStatus(c.projectId, 'cancelled');
+      }
       changed();
     },
   };

@@ -43,6 +43,22 @@ function AdminInner({ onSignOut }: { onSignOut: () => void }) {
         <Metric label="Fee revenue" value={<Money pence={m.feeRevenuePence} size={28} />} />
       </View>
       <ErrorText>{error}</ErrorText>
+      {data.disputes.length > 0 ? (
+        <>
+          <Heading style={{ marginBottom: space.md }}>Problems to resolve</Heading>
+          {data.disputes.map((c) => (
+            <Card key={c.id} onPress={() => router.push(`/contract/${c.id}`)} testID={`dispute-${c.id}`}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Heading style={{ flex: 1 }} numberOfLines={1}>{c.projectTitle}</Heading>
+                <Money pence={c.amountPence} />
+              </Row>
+              <Muted>{c.companyName} · {c.studentName}</Muted>
+              {c.issueReason ? <Body style={{ marginTop: space.sm }} numberOfLines={3}>&ldquo;{c.issueReason}&rdquo;</Body> : null}
+            </Card>
+          ))}
+          <Gap size={space.md} />
+        </>
+      ) : null}
       <Heading style={{ marginBottom: space.md }}>Open projects</Heading>
       {data.unmatched.length === 0 ? <Empty title="Everything is matched" /> : data.unmatched.map(({ project, suggestions }) => (
         <Card key={project.id}>

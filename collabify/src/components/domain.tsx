@@ -7,7 +7,7 @@ import { fonts, space, useTheme } from '@/theme';
 import { Body, Card, Divider, Heading, LineItem, Money, Muted, Pill, Row } from './ui';
 
 const CONTRACT_TONE: Record<ContractStatus, 'neutral' | 'primary' | 'money' | 'warning' | 'danger'> = {
-  awaiting_funding: 'warning', funded: 'primary', delivered: 'primary', released: 'money', refunded: 'neutral', disputed: 'danger',
+  awaiting_funding: 'warning', funded: 'primary', delivered: 'primary', released: 'money', refunded: 'neutral', disputed: 'danger', cancelled: 'neutral',
 };
 export const ContractPill = ({ status }: { status: ContractStatus }) => <Pill label={CONTRACT_LABEL[status]} tone={CONTRACT_TONE[status]} />;
 

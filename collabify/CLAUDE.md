@@ -9,7 +9,8 @@ Read `AGENTS.md` too: Expo changes every SDK — check versioned docs before usi
 - Scaffolded from `blank-typescript`; entry is `expo-router/entry`; routes go in `src/app/`; `@/*` maps to `src/*`.
 - Installed: expo-document-picker, expo-router, expo-font, @expo-google-fonts/inter, expo-haptics, expo-linear-gradient, expo-secure-store, expo-web-browser, @expo/vector-icons, @supabase/supabase-js, @react-native-async-storage/async-storage, react-native-url-polyfill, react-native-web, react-dom.
 - Build plan steps 1–8 are implemented for the MVP: all screens (demo mode), Supabase migration with RLS and tests (`supabase/tests/rules.test.sql`), Supabase `Api`, Edge Functions (Stripe Connect, write-brief; typechecked with Deno but not yet run against real Stripe or a hosted Supabase project), admin hand-matching and metrics. See README.md for setup and what's not built yet.
-- Not yet run on a physical device or the iOS simulator; verified with tsc, expo lint, and a web export click-through.
+- Also built: ask for changes, cancel hire/project, withdraw, dispute resolution (`resolve-dispute`), featured listings and plans via Stripe Checkout (`billing-checkout`). Tests: `npm test` (Jest), `supabase/tests/run.sh` (SQL/RLS), `deno test` in `supabase/functions`.
+- Not yet run on a physical device or the iOS simulator; verified with tsc, expo lint, tests, and a web export click-through.
 - Expo Router 58 import paths: `Stack` from `expo-router/stack`, `Tabs` from `expo-router/js-tabs` (the root `Tabs` export is deprecated). Check `node_modules/expo-router/package.json` exports before importing anything else.
 
 ## Product rules (do not change without asking Zack)

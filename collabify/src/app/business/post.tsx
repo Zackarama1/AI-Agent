@@ -1,17 +1,17 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Switch, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { FeeBreakdown } from '@/components/domain';
-import { Body, Button, Card, Chip, ErrorText, Field, Gap, Heading, Label, Muted, Row, Screen } from '@/components/ui';
+import { Button, Card, Chip, ErrorText, Field, Gap, Heading, Label, Muted, Row, Screen } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { CATEGORIES, SKILL_OPTIONS, TEMPLATES } from '@/lib/brief';
-import { FEATURED_LISTING_PENCE, formatGBP, hourlyRatePence, meetsMinimumRate, minimumBudgetPence } from '@/lib/fees';
+import { formatGBP, hourlyRatePence, meetsMinimumRate, minimumBudgetPence } from '@/lib/fees';
 import { haptic } from '@/lib/haptics';
 import { useMe } from '@/lib/session';
 import { useAction, useQuery } from '@/lib/useQuery';
 import { space, useTheme } from '@/theme';
 
-const EMPTY = { idea: '', title: '', category: 'Design', brief: '', hours: '', budget: '', days: '14', skills: [] as string[], featured: false };
+const EMPTY = { idea: '', title: '', category: 'Design', brief: '', hours: '', budget: '', days: '14', skills: [] as string[] };
 
 export default function PostProject() {
   const me = useMe();
@@ -27,7 +27,6 @@ export default function PostProject() {
   const minPence = minimumBudgetPence(hours);
   const tooLow = hours > 0 && budgetPence > 0 && !meetsMinimumRate(budgetPence, hours);
   const plan = business?.plan ?? 'free';
-  const demo = getApi().mode === 'demo';
 
   const writeBrief = () =>
     writer.run(async () => {
@@ -42,7 +41,7 @@ export default function PostProject() {
       if (tooLow) throw new Error(`The minimum for ${hours} hours is ${formatGBP(minPence, { exact: true })}`);
       const p = await getApi().createProject({
         title: f.title, category: f.category, brief: f.brief, budgetPence, estimatedHours: hours,
-        durationDays: Number(f.days) || 14, skills: f.skills, featured: f.featured,
+        durationDays: Number(f.days) || 14, skills: f.skills
       });
       haptic.success();
       setF(EMPTY);
@@ -97,18 +96,6 @@ export default function PostProject() {
               <Heading style={{ marginBottom: space.sm }}>What you&apos;ll pay</Heading>
               <FeeBreakdown amountPence={budgetPence} plan={plan} />
               <Muted style={{ marginTop: space.sm, fontSize: 13 }}>You pay when you hire. The money is held and only released when you approve the work.</Muted>
-            </Card>
-          ) : null}
-
-          {demo ? (
-            <Card>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <View style={{ flex: 1 }}>
-                  <Body>Feature this project</Body>
-                  <Muted style={{ fontSize: 13 }}>Pinned to the top for 7 days · {formatGBP(FEATURED_LISTING_PENCE)}</Muted>
-                </View>
-                <Switch value={f.featured} onValueChange={(v) => set('featured', v)} trackColor={{ true: colors.primary }} />
-              </Row>
             </Card>
           ) : null}
 

@@ -8,6 +8,7 @@ export const CONTRACT_LABEL: Record<ContractStatus, string> = {
   released: 'Paid',
   refunded: 'Refunded',
   disputed: 'Under review',
+  cancelled: 'Cancelled',
 };
 
 export const PROJECT_LABEL: Record<ProjectStatus, string> = {

@@ -170,23 +170,24 @@ export function Field({
   );
 }
 
-export function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress?: () => void }) {
+export function Chip({ label, selected, onPress, onGrey }: { label: string; selected?: boolean; onPress?: () => void; onGrey?: boolean }) {
   const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.surfaceAlt }]}
+      style={[styles.chip, { backgroundColor: selected ? colors.primary : onGrey ? colors.surface : colors.surfaceAlt }]}
     >
       <RNText style={[styles.chipText, { color: selected ? colors.primaryText : colors.text }]}>{label}</RNText>
     </Pressable>
   );
 }
 
-export function Chips({ items }: { items: string[] }) {
+/** Read-only skill chips. Pass `onGrey` when placed on a grey card. */
+export function Chips({ items, onGrey }: { items: string[]; onGrey?: boolean }) {
   return (
     <View style={styles.chips}>
-      {items.map((s) => <Chip key={s} label={s} />)}
+      {items.map((s) => <Chip key={s} label={s} onGrey={onGrey} />)}
     </View>
   );
 }

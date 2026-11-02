@@ -16,7 +16,8 @@ const NEXT_STEP: Partial<Record<Contract['status'], string>> = {
 export default function BusinessProjects() {
   const me = useMe();
   const { data: projects } = useQuery((api) => api.listMyProjects());
-  const { data: contracts } = useQuery((api) => api.listMyContracts());
+  const { data: all } = useQuery((api) => api.listMyContracts());
+  const contracts = all?.filter((c) => c.status !== 'cancelled');
   if (!projects || !contracts) return <Screen title="Projects"><Loading /></Screen>;
   const action = contracts.filter((c) => NEXT_STEP[c.status]);
   const byProject = new Map(contracts.map((c) => [c.projectId, c]));

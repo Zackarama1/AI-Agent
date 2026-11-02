@@ -34,15 +34,19 @@ export interface Api {
   startPayoutSetup(): Promise<{ url?: string }>;
   getBusiness(id: string): Promise<Business | null>;
   updateMyBusiness(patch: Partial<Pick<Business, 'companyName' | 'website'>>): Promise<void>;
-  /** Plans are sold on the web (Stripe Billing). Demo mode switches instantly. */
+  /** Plans are sold on the web (Stripe Billing): returns a checkout or billing-portal URL. Demo mode switches instantly. */
   changePlan(plan: Plan): Promise<{ url?: string }>;
 
   // Projects
   listOpenProjects(filter?: { category?: string; search?: string }): Promise<Project[]>;
   getProject(id: string): Promise<Project | null>;
   listMyProjects(): Promise<Project[]>;
-  createProject(input: NewProject & { featured?: boolean }): Promise<Project>;
+  createProject(input: NewProject): Promise<Project>;
   writeBrief(idea: string, category: string): Promise<Brief>;
+  /** £19 to pin a project to the top for 7 days. Returns a checkout URL; demo mode features instantly. */
+  featureProject(projectId: string): Promise<{ checkoutUrl?: string }>;
+  /** Close an open project before anyone is hired. */
+  cancelProject(projectId: string): Promise<void>;
 
   // Applications
   apply(projectId: string, pitch: string): Promise<void>;
@@ -50,6 +54,7 @@ export interface Api {
   listMyApplications(): Promise<Application[]>;
   listApplicants(projectId: string): Promise<Application[]>;
   setApplicationStatus(applicationId: string, status: 'shortlisted' | 'declined'): Promise<void>;
+  withdrawApplication(applicationId: string): Promise<void>;
   hire(applicationId: string): Promise<Contract>;
 
   // Contracts & payments
@@ -60,7 +65,13 @@ export interface Api {
   fundContract(contractId: string): Promise<{ checkoutUrl?: string }>;
   deliver(contractId: string, message: string, files: DeliveryFile[]): Promise<void>;
   listDeliveries(contractId: string): Promise<Delivery[]>;
+  /** Signed link to a delivered file; null in demo mode where files aren't stored. */
+  getDeliveryFileUrl(path: string): Promise<string | null>;
   approve(contractId: string): Promise<void>;
+  /** Business sends a delivery back for changes: payment stays held, auto-release pauses. */
+  requestChanges(contractId: string, note: string): Promise<void>;
+  /** Business cancels a hire before paying; the project reopens. */
+  cancelContract(contractId: string): Promise<void>;
   raiseIssue(contractId: string, reason: string): Promise<void>;
 
   // Reviews (blind)
@@ -75,6 +86,8 @@ export interface Api {
   // Admin
   adminOverview(): Promise<AdminOverview>;
   adminShortlist(projectId: string, studentId: string): Promise<void>;
+  /** Settle a reported problem: pay the student, or refund the business in full. */
+  adminResolve(contractId: string, outcome: 'release' | 'refund'): Promise<void>;
 }
 
 export class ApiError extends Error {}

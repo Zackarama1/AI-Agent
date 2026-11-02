@@ -11,6 +11,7 @@ export const PLANS: Record<Plan, { id: Plan; name: string; feeRate: number; mont
 };
 
 export const FEATURED_LISTING_PENCE = 1900;
+export const FEATURED_DAYS = 7;
 
 /** Minimum effective hourly rate: £12.71. */
 export const MIN_HOURLY_PENCE = 1271;

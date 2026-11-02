@@ -58,8 +58,9 @@ select pg_temp.expect_error($$insert into projects (business_id, title, category
   values (auth.uid(), 'Cheap logo', 'Design', 'A logo for our startup with a couple of concepts please.', 12000, 10, '{}')$$, 'budget below £12.71/hour');
 insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, skills)
   values (auth.uid(), 'Logo and brand kit', 'Design', 'A logo for our startup with a couple of concepts please.', 45000, 20, array['Figma']);
-select pg_temp.expect_error($$insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, featured)
-  values (auth.uid(), 'Free featured', 'Design', 'Trying to feature a project without paying for it at all.', 45000, 20, true)$$, 'featured without paying');
+select pg_temp.expect_error($$insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, featured_until)
+  values (auth.uid(), 'Free featured', 'Design', 'Trying to feature a project without paying for it at all.', 45000, 20, now() + interval '30 days')$$, 'featured without paying (insert)');
+select pg_temp.expect_error($$update projects set featured_until = now() + interval '30 days'$$, 'featured without paying (update)');
 reset role;
 
 -- Students apply; applications are private
@@ -128,4 +129,57 @@ reset role;
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
 set role authenticated;
 select pg_temp.expect_error($$select admin_metrics()$$, 'non-admins cannot read metrics');
+reset role;
+
+-- ===== Revisions, cancellations, withdrawals, featured listings =====
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, skills)
+  values (auth.uid(), 'Landing page build', 'Development', 'A fast landing page with a waitlist form for our launch.', 60000, 30, array['React']);
+insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, skills)
+  values (auth.uid(), 'Competitor research', 'Research', 'Map ten competitors and summarise their pricing for us.', 20000, 12, array['Research']);
+select pg_temp.expect_error($$select extend_featured((select id from projects where title = 'Landing page build'), 7)$$, 'businesses cannot feature for free');
+reset role;
+select id as p2 from projects where title = 'Landing page build' \gset
+select id as p3 from projects where title = 'Competitor research' \gset
+
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+insert into applications (project_id, student_id, pitch) values (:'p2', auth.uid(), 'I build landing pages in React every week.');
+insert into applications (project_id, student_id, pitch) values (:'p3', auth.uid(), 'Research is my favourite kind of project.');
+delete from applications where project_id = :'p3';
+select pg_temp.check((select count(*) from applications where project_id = :'p3') = 0, 'student withdraws an application');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+insert into applications (project_id, student_id, pitch) values (:'p2', auth.uid(), 'I would love to build this page for you.');
+reset role;
+
+-- Hire Sam, then cancel before paying: project reopens, Other comes back
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+select hire_student((select id from applications where project_id = :'p2' and student_id = '00000000-0000-0000-0000-00000000000a'));
+select cancel_contract((select id from contracts where project_id = :'p2' and cancelled_at is null));
+select pg_temp.check((select status from projects where id = :'p2') = 'open', 'cancelled hire reopens the project');
+select pg_temp.check((select status from applications where project_id = :'p2' and student_id = '00000000-0000-0000-0000-00000000000c') = 'applied', 'auto-declined applicant restored');
+select pg_temp.check((select status from applications where project_id = :'p2' and student_id = '00000000-0000-0000-0000-00000000000a') = 'shortlisted', 'cancelled student returns to the shortlist');
+-- Hire Other instead: a second live contract on the same project is allowed after cancellation
+select hire_student((select id from applications where project_id = :'p2' and student_id = '00000000-0000-0000-0000-00000000000c'));
+select pg_temp.check((select count(*) from contracts where project_id = :'p2' and cancelled_at is null) = 1, 'one live contract per project');
+select cancel_project(:'p3');
+select pg_temp.check((select status from projects where id = :'p3') = 'cancelled', 'business cancels an open project');
+reset role;
+
+update contracts set status = 'funded', funded_at = now() where project_id = :'p2' and cancelled_at is null;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+select deliver_contract((select id from contracts where project_id = :'p2' and cancelled_at is null), 'First version is live on the preview link.', '{}');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+select pg_temp.expect_error($$select cancel_contract((select id from contracts where project_id = (select id from projects where title = 'Landing page build') and cancelled_at is null))$$, 'cannot cancel a paid project');
+select request_changes((select id from contracts where project_id = :'p2' and cancelled_at is null), 'Please make the hero image bigger and fix the form.');
+select pg_temp.check((select status = 'funded' and auto_release_at is null and revision_count = 1 from contracts where project_id = :'p2' and cancelled_at is null), 'changes requested: payment held, auto-release paused');
+select raise_issue((select id from contracts where project_id = :'p2' and cancelled_at is null), 'They have stopped replying to messages.');
+select pg_temp.check((select issue_reason is not null and issue_raised_by = auth.uid() from contracts where project_id = :'p2' and cancelled_at is null), 'issue reason recorded');
 reset role;
