@@ -1,0 +1,12 @@
+project_id = "collabify"
+
+[auth.email]
+# Sign-in uses a 6-digit one-time code. Edit the "Magic Link" email template to show {{ .Token }}.
+otp_length = 6
+otp_expiry = 900
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.auto-release]
+verify_jwt = false

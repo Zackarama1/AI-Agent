@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Collabify",
+    "slug": "collabify",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.collabify.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#5B3DF5",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.collabify.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "scheme": "collabify",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
