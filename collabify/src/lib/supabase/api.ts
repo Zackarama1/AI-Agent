@@ -80,7 +80,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     return {
       id: r.id, businessId: r.business_id, companyName: r.business?.company_name ?? '', title: r.title, category: r.category,
       brief: r.brief, budgetPence: r.budget_pence, estimatedHours: Number(r.estimated_hours), durationDays: r.duration_days,
-      skills: r.skills ?? [], status: r.status, featuredUntil: r.featured_until,
+      skills: r.skills ?? [], deliverables: r.deliverables ?? [], level: r.level, workMode: r.work_mode, city: r.city ?? '',
+      status: r.status, featuredUntil: r.featured_until,
       featured: Boolean(r.featured_until && new Date(r.featured_until) > new Date()),
       createdAt: r.created_at, applicantCount: Number(count ?? 0),
     };
@@ -136,7 +137,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async completeOnboarding(input) {
       const params = input.role === 'student'
         ? { p_role: 'student', p_full_name: input.fullName, p_university: input.university, p_course: input.course, p_year: input.year, p_skills: input.skills }
-        : { p_role: 'business', p_full_name: input.fullName, p_company_name: input.companyName, p_website: input.website };
+        : {
+          p_role: 'business', p_full_name: input.fullName, p_company_name: input.companyName, p_website: input.website,
+          p_industry: input.industry, p_company_size: input.companySize, p_location: input.location, p_about: input.about,
+        };
       await write(sb.rpc('complete_onboarding', params));
       const profile = await api.getSession();
       if (!profile) throw new ApiError('Could not finish sign-up');
@@ -186,13 +190,21 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (!data) return null;
       return {
         id: data.id, fullName: data.profile?.full_name ?? '', companyName: data.company_name, website: data.website,
+        industry: data.industry, companySize: data.company_size, location: data.location, about: data.about,
         plan: data.plan, rating: await rating(data.id),
+        stats: ((await sb.rpc('business_stats', { p_business_id: data.id })).data ?? {
+          projectsPosted: 0, studentsHired: 0, paidProjects: 0, openProjects: 0, memberSince: null,
+        }) as Business['stats'],
       } satisfies Business;
     },
     async updateMyBusiness(patch) {
       const row: Row = {};
       if (patch.companyName !== undefined) row.company_name = patch.companyName;
       if (patch.website !== undefined) row.website = patch.website;
+      if (patch.industry !== undefined) row.industry = patch.industry;
+      if (patch.companySize !== undefined) row.company_size = patch.companySize;
+      if (patch.location !== undefined) row.location = patch.location;
+      if (patch.about !== undefined) row.about = patch.about;
       await write(sb.from('businesses').update(row).eq('id', await uid()));
     },
     async changePlan(plan: Plan) {
@@ -206,6 +218,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       let q = sb.from('projects').select(PROJECT_SELECT).eq('status', 'open')
         .order('created_at', { ascending: false }).limit(100);
       if (filter.category) q = q.eq('category', filter.category);
+      if (filter.businessId) q = q.eq('business_id', filter.businessId);
       const search = filter.search?.trim().replace(/[%,()]/g, ' ');
       if (search) q = q.or(`title.ilike.%${search}%,brief.ilike.%${search}%`);
       const { data, error } = await q;
@@ -227,6 +240,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
         sb.from('projects').insert({
           business_id: await uid(), title: input.title.trim(), category: input.category, brief: input.brief.trim(),
           budget_pence: input.budgetPence, estimated_hours: input.estimatedHours, duration_days: input.durationDays, skills: input.skills,
+          deliverables: input.deliverables.map((d) => d.trim()).filter(Boolean), level: input.level, work_mode: input.workMode,
+          city: input.workMode === 'remote' ? '' : input.city.trim(),
         }).select(PROJECT_SELECT).single(),
       );
       return toProject(row as Row);

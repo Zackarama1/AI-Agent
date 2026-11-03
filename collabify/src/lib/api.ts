@@ -1,12 +1,12 @@
 import type {
-  AdminOverview, AppNotification, Application, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
+  AdminOverview, AppNotification, Application, CompanySize, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
   Profile, Project, Review, Role, Student, StudentPrivate, Suggestion,
 } from './types';
 import type { Plan } from './fees';
 
 export type OnboardingInput =
   | { role: 'student'; fullName: string; university: string; course: string; year: string; skills: string[] }
-  | { role: 'business'; fullName: string; companyName: string; website: string };
+  | { role: 'business'; fullName: string; companyName: string; website: string; industry: string; companySize: CompanySize; location: string; about: string };
 
 export type DeliveryFile = { name: string; uri: string };
 
@@ -37,12 +37,12 @@ export interface Api {
   updateMyStudent(patch: Partial<Pick<Student, 'university' | 'course' | 'year' | 'skills' | 'bio' | 'portfolioUrl'>>): Promise<void>;
   startPayoutSetup(): Promise<{ url?: string }>;
   getBusiness(id: string): Promise<Business | null>;
-  updateMyBusiness(patch: Partial<Pick<Business, 'companyName' | 'website'>>): Promise<void>;
+  updateMyBusiness(patch: Partial<Pick<Business, 'companyName' | 'website' | 'industry' | 'companySize' | 'location' | 'about'>>): Promise<void>;
   /** Plans are sold on the web (Stripe Billing): returns a checkout or billing-portal URL. Demo mode switches instantly. */
   changePlan(plan: Plan): Promise<{ url?: string }>;
 
   // Projects
-  listOpenProjects(filter?: { category?: string; search?: string }): Promise<Project[]>;
+  listOpenProjects(filter?: { category?: string; search?: string; businessId?: string }): Promise<Project[]>;
   getProject(id: string): Promise<Project | null>;
   listMyProjects(): Promise<Project[]>;
   createProject(input: NewProject): Promise<Project>;

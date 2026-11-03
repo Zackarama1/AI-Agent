@@ -258,6 +258,20 @@ select pg_temp.check(exists (select 1 from notifications where kind = 'invited' 
 select pg_temp.expect_error($$insert into project_invites (project_id, student_id) values ((select id from projects where title = 'Social media audit'), auth.uid())$$, 'students cannot invite themselves');
 reset role;
 
+-- ===== Richer listings =====
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+update businesses set industry = 'Food & drink', company_size = '2–10', location = 'Bristol', about = 'Coffee subscriptions.' where id = auth.uid();
+select pg_temp.expect_error($$update businesses set company_size = 'enormous' where id = auth.uid()$$, 'company size must be a known band');
+insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, skills, deliverables, level, work_mode, city)
+  values (auth.uid(), 'Pop-up stall branding', 'Design', 'Branding for a weekend market stall in Bristol, printed and digital.', 30000, 20, array['Branding'],
+          array['Logo', 'Banner artwork'], 'beginner', 'hybrid', 'Bristol');
+select pg_temp.expect_error($$insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, work_mode)
+  values (auth.uid(), 'In person, nowhere', 'Design', 'This project is in person but does not say where it happens.', 30000, 20, 'in_person')$$, 'in-person projects must say where');
+reset role;
+select pg_temp.check((business_stats('00000000-0000-0000-0000-00000000000b') ->> 'studentsHired')::int = 2, 'company stats count students hired');
+select pg_temp.check((business_stats('00000000-0000-0000-0000-00000000000b') ->> 'paidProjects')::int = 1, 'company stats count paid projects');
+
 -- ===== Guard: no table-wide write access for app users beyond this allowlist =====
 -- Supabase grants ALL on new tables by default; every migration that creates a table must revoke it.
 select pg_temp.check(

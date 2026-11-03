@@ -8,7 +8,9 @@ import { templateBrief } from '../_shared/brief-template.ts';
 
 const BriefSchema = z.object({
   title: z.string().describe('Short project title, max 70 characters'),
-  brief: z.string().describe('Brief with three sections separated by blank lines: "What we need", "Deliverables" (bullet points with •), "How we\'ll work"'),
+  brief: z.string().describe('Two short paragraphs: what the business needs and why, then how the work will run. No headings, no bullet lists.'),
+  deliverables: z.array(z.string()).describe('2 to 5 concrete things the student hands over, each under 60 characters'),
+  level: z.enum(['beginner', 'intermediate', 'advanced']).describe('Experience a student needs'),
   skills: z.array(z.string()).describe('2 to 5 skills a student needs'),
   estimatedHours: z.number().describe('Realistic hours for a capable university student'),
   durationDays: z.number().describe('Calendar days to complete'),
@@ -44,6 +46,8 @@ serve(async (req) => {
       title: brief.title.slice(0, 120),
       brief: brief.brief,
       skills: brief.skills.slice(0, 5),
+      deliverables: brief.deliverables.slice(0, 8),
+      level: brief.level,
       estimatedHours: Math.max(1, Math.round(brief.estimatedHours)),
       durationDays: Math.min(180, Math.max(1, Math.round(brief.durationDays))),
     });

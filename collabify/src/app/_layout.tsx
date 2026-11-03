@@ -6,6 +6,7 @@ import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { FeedbackProvider } from '@/components/feedback';
 import { SessionProvider } from '@/lib/session';
 import { fonts, useTheme } from '@/theme';
 
@@ -33,6 +34,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider value={navTheme}>
         <SessionProvider>
+          <FeedbackProvider>
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="index" />
@@ -50,6 +52,7 @@ export default function RootLayout() {
             <Stack.Screen name="activity" options={detail} />
             <Stack.Screen name="stripe-return" />
           </Stack>
+          </FeedbackProvider>
         </SessionProvider>
       </ThemeProvider>
     </SafeAreaProvider>

@@ -1,6 +1,7 @@
 import { ApiError, type Api, type OnboardingInput } from '../api';
-import { AUTO_RELEASE_DAYS, FEATURED_DAYS, feeFor, formatGBP, isUkUniversityEmail, meetsMinimumRate, type Plan } from '../fees';
+import { AUTO_RELEASE_DAYS, FEATURED_DAYS, feeFor, formatGBP, isUkUniversityEmail, type Plan } from '../fees';
 import { matchScore } from '../matching';
+import { projectProblems } from '../projectRules';
 import { templateBrief } from '../brief';
 import type {
   AppNotification, Application, ApplicationStatus, Business, Contract, ContractStatus, Delivery, Message, Profile, Project,
@@ -16,7 +17,7 @@ import { seed } from './seed';
 
 export type DemoUser = Profile & {
   student?: Omit<Student, 'id' | 'fullName' | 'verified' | 'rating' | 'completedCount'> & { private: StudentPrivate };
-  business?: Omit<Business, 'id' | 'fullName' | 'rating'>;
+  business?: Omit<Business, 'id' | 'fullName' | 'rating' | 'stats'> & { createdAt?: string };
 };
 export type DemoProject = Omit<Project, 'companyName' | 'applicantCount' | 'featured'>;
 export type DemoApplication = {
@@ -95,8 +96,20 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     fullName: u.fullName,
     companyName: u.business!.companyName,
     website: u.business!.website,
+    industry: u.business!.industry,
+    companySize: u.business!.companySize,
+    location: u.business!.location,
+    about: u.business!.about,
     plan: u.business!.plan,
     rating: ratingFor(u.id),
+    // Computed from what actually happened, never self-reported.
+    stats: {
+      projectsPosted: db.projects.filter((p) => p.businessId === u.id && p.status !== 'cancelled').length,
+      studentsHired: new Set(db.contracts.filter((c) => c.businessId === u.id && c.status !== 'cancelled').map((c) => c.studentId)).size,
+      paidProjects: db.contracts.filter((c) => c.businessId === u.id && c.status === 'released').length,
+      openProjects: db.projects.filter((p) => p.businessId === u.id && p.status === 'open').length,
+      memberSince: u.business!.createdAt ?? null,
+    },
   });
   const isFeatured = (p: DemoProject) => Boolean(p.featuredUntil && new Date(p.featuredUntil) > new Date());
   const toProject = (p: DemoProject): Project => ({
@@ -214,7 +227,10 @@ export function createDemoApi(db: DemoDb = seed()): Api {
           private: { universityEmail: verifiedEmail, payoutsEnabled: false, rightToWorkStatus: 'unknown', verifiedAt: now() },
         };
       } else {
-        u.business = { companyName: input.companyName, website: input.website, plan: 'free' };
+        u.business = {
+          companyName: input.companyName, website: input.website, plan: 'free', industry: input.industry, companySize: input.companySize,
+          location: input.location, about: input.about, createdAt: now(),
+        };
       }
       db.users.push(u);
       pendingSignups.delete(verifiedEmail);
@@ -298,6 +314,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       return db.projects
         .filter((p) => p.status === 'open')
         .filter((p) => !filter.category || p.category === filter.category)
+        .filter((p) => !filter.businessId || p.businessId === filter.businessId)
         .filter((p) => !q || `${p.title} ${p.brief} ${p.skills.join(' ')}`.toLowerCase().includes(q))
         .sort((a, b) => Number(isFeatured(b)) - Number(isFeatured(a)) || b.createdAt.localeCompare(a.createdAt))
         .map(toProject);
@@ -312,16 +329,13 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     },
     async createProject(input) {
       const u = requireRole('business');
-      if (input.title.trim().length < 5) throw new ApiError('Give your project a clearer title');
-      if (input.brief.trim().length < 30) throw new ApiError('Add a bit more detail to the brief');
-      if (!(input.estimatedHours > 0)) throw new ApiError('Estimate how many hours this will take');
-      if (!meetsMinimumRate(input.budgetPence, input.estimatedHours)) {
-        throw new ApiError('Budget is below the £12.71/hour minimum for the estimated hours');
-      }
+      const problems = projectProblems(input);
+      if (problems.length) throw new ApiError(problems[0]);
       const p: DemoProject = {
         id: id('p'), businessId: u.id, title: input.title.trim(), category: input.category, brief: input.brief.trim(),
         budgetPence: input.budgetPence, estimatedHours: input.estimatedHours, durationDays: input.durationDays,
-        skills: input.skills, status: 'open', featuredUntil: null, createdAt: now(),
+        skills: input.skills, deliverables: input.deliverables.map((d) => d.trim()).filter(Boolean), level: input.level,
+        workMode: input.workMode, city: input.workMode === 'remote' ? '' : input.city.trim(), status: 'open', featuredUntil: null, createdAt: now(),
       };
       db.projects.push(p);
       changed();

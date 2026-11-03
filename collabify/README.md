@@ -37,6 +37,10 @@ supabase/tests/run.sh          # database rules, against a local Postgres (see b
 | Report a problem → admin pays the student or refunds the business | `contract/[id].tsx`, `admin.tsx`, `resolve-dispute` |
 | Notifications: activity feed with unread badge, and push to phones (applications, hires, payment held, deliveries, changes, payments, problems, messages, reviews) | `activity.tsx`, `src/lib/push.ts`, notification triggers, `send-push` |
 | Invite students: best matches who haven't applied, one-tap invite, "Invited" badge and banner for the student | `project/[id].tsx`, `student/index.tsx`, `project_invites` |
+| Feel: spring presses, staggered fade-ins, skeleton loading, pull to refresh, toasts after every action, celebrations for milestones (welcome, hired, first project, paid, complete) | `components/motion.tsx`, `components/feedback.tsx` |
+| Stepped onboarding with progress (student: name, study, skills; business: name, company, details) | `onboarding.tsx` |
+| "What happens next" on every project stage, from one tested state machine | `lib/contractFlow.ts`, `contract/[id].tsx` |
+| Company listings: industry, size, location, about, and a track record computed from real contracts; projects with deliverables, experience level and where the work happens | `components/company.tsx`, `people/[id].tsx`, `project/[id].tsx`, `business_stats` |
 | Account deletion (refused while payment is held) | `DeleteAccount.tsx`, `delete-account` |
 | Featured listings (£19, 7 days) and Startup Pro / Scale plans, sold through Stripe Checkout in the browser | `project/[id].tsx`, `plans.tsx`, `billing-checkout` |
 | Admin hand-matching + metrics (fill rate, time to match, repeat clients) | `src/app/admin.tsx` |

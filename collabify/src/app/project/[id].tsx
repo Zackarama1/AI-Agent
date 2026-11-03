@@ -1,8 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
+import { CompanyLogo, TrackRecord, companyFacts } from '@/components/company';
+import { FadeIn } from '@/components/motion';
+import { LEVEL_LABEL, whereLabel } from '@/lib/projectRules';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { FeeBreakdown, ProjectPill } from '@/components/domain';
-import { Avatar, Body, Button, Card, Chips, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Pill, Row, Screen, Stars } from '@/components/ui';
+import { Avatar, Body, Button, Card, Chips, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Pill, Row, Screen, Stars, type IconName } from '@/components/ui';
 import { openStripe } from '@/lib/stripeFlow';
 import { getApi } from '@/lib/api';
 import { FEATURED_DAYS, FEATURED_LISTING_PENCE, formatGBP, hourlyRatePence } from '@/lib/fees';
@@ -11,7 +15,7 @@ import { matchScore } from '@/lib/matching';
 import { useMe } from '@/lib/session';
 import { useAction, useQuery } from '@/lib/useQuery';
 import type { Application, Project } from '@/lib/types';
-import { fonts, space, useTheme } from '@/theme';
+import { fonts, radius, space, useTheme } from '@/theme';
 
 function ApplyBox({ project }: { project: Project }) {
   const { data: mine } = useQuery((api) => api.getMyApplication(project.id), [project.id]);
@@ -214,6 +218,38 @@ function OwnerView({ project }: { project: Project }) {
   );
 }
 
+function Fact({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', gap: space.sm, alignItems: 'center', backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: space.md }}>
+      <Ionicons name={icon} size={18} color={colors.primary} />
+      <View style={{ flex: 1 }}>
+        <Muted style={{ fontSize: 11 }}>{label}</Muted>
+        <Body style={{ fontFamily: fonts.semibold, fontSize: 14 }} numberOfLines={1}>{value}</Body>
+      </View>
+    </View>
+  );
+}
+
+function AboutCompany({ businessId }: { businessId: string }) {
+  const { data: b } = useQuery((api) => api.getBusiness(businessId), [businessId]);
+  if (!b) return null;
+  return (
+    <Card onPress={() => router.push(`/people/${b.id}`)} testID="company-card">
+      <Row gap={space.md} style={{ marginBottom: space.lg }}>
+        <CompanyLogo name={b.companyName} size={48} />
+        <View style={{ flex: 1 }}>
+          <Heading numberOfLines={1}>{b.companyName}</Heading>
+          {companyFacts(b) ? <Muted style={{ fontSize: 13 }} numberOfLines={1}>{companyFacts(b)}</Muted> : null}
+        </View>
+        <Ionicons name="chevron-forward" size={18} />
+      </Row>
+      {b.about ? <Body style={{ marginBottom: space.lg }} numberOfLines={3}>{b.about}</Body> : null}
+      <TrackRecord stats={b.stats} rating={b.rating} />
+    </Card>
+  );
+}
+
 export default function ProjectDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe();
@@ -227,41 +263,70 @@ export default function ProjectDetail() {
   return (
     <Screen edges={[]}>
       <Stack.Screen options={{ title: '' }} />
-      <Row gap={6}>
-        {project.featured ? <Pill label="Featured" tone="primary" /> : null}
-        <Pill label={project.category} />
-        <ProjectPill status={project.status} />
-      </Row>
+      <FadeIn>
+        <Row gap={6}>
+          {project.featured ? <Pill label="Featured" tone="primary" /> : null}
+          <Pill label={project.category} />
+          <ProjectPill status={project.status} />
+        </Row>
+        <Gap size={space.md} />
+        <Heading style={{ fontSize: 30, lineHeight: 34, letterSpacing: -1, fontFamily: fonts.heavy }}>{project.title}</Heading>
+        <Row style={{ marginTop: space.sm }}>
+          <CompanyLogo name={project.companyName} size={24} />
+          <Muted>{project.companyName} · posted {timeAgo(project.createdAt)}</Muted>
+        </Row>
+
+        <Row gap={space.xl} style={{ marginVertical: space.xl }}>
+          <View>
+            <Label>Pay</Label>
+            <Money pence={project.budgetPence} size={30} />
+          </View>
+          <View>
+            <Label>Time</Label>
+            <Body style={{ fontFamily: fonts.bold, fontSize: 22, marginTop: 4 }}>{project.estimatedHours}h</Body>
+          </View>
+          <View>
+            <Label>Rate</Label>
+            <Body style={{ fontFamily: fonts.bold, fontSize: 22, marginTop: 4 }}>{formatGBP(hourlyRatePence(project.budgetPence, project.estimatedHours))}/h</Body>
+          </View>
+        </Row>
+      </FadeIn>
+
+      <FadeIn index={1}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.lg }}>
+          <Fact icon="location" label="Where" value={whereLabel(project)} />
+          <Fact icon="school" label="Level" value={LEVEL_LABEL[project.level]} />
+          <Fact icon="calendar" label="Due" value={`${project.durationDays} days after start`} />
+          <Fact icon="people" label="Applicants" value={project.applicantCount === 0 ? 'Be the first' : String(project.applicantCount)} />
+        </View>
+      </FadeIn>
+
+      <FadeIn index={2}>
+        <Card style={{ backgroundColor: colors.surfaceAlt, borderWidth: 0 }}>
+          <Body>{project.brief}</Body>
+          {project.deliverables.length ? (
+            <View style={{ marginTop: space.lg }}>
+              <Label style={{ marginBottom: space.sm }}>You&apos;ll deliver</Label>
+              {project.deliverables.map((d) => (
+                <Row key={d} style={{ marginBottom: 6, alignItems: 'flex-start' }}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.money} style={{ marginTop: 2 }} />
+                  <Body style={{ flex: 1 }}>{d}</Body>
+                </Row>
+              ))}
+            </View>
+          ) : null}
+          <Gap size={space.lg} />
+          <Chips items={project.skills} onGrey />
+        </Card>
+        <Row gap={6} style={{ marginBottom: space.xl, marginTop: space.sm }}>
+          <Ionicons name="shield-checkmark" size={14} color={colors.moneyText} />
+          <Body style={{ color: colors.moneyText, fontSize: 13, fontFamily: fonts.semibold }}>Protected payment</Body>
+          <Muted style={{ fontSize: 13 }}>· held before work starts</Muted>
+        </Row>
+      </FadeIn>
+
+      {!isOwner ? <FadeIn index={3}><AboutCompany businessId={project.businessId} /></FadeIn> : null}
       <Gap size={space.md} />
-      <Heading style={{ fontSize: 30, lineHeight: 34, letterSpacing: -1, fontFamily: fonts.heavy }}>{project.title}</Heading>
-      <Muted style={{ marginTop: space.xs }}>{project.companyName} · posted {timeAgo(project.createdAt)}</Muted>
-
-      <Row gap={space.xl} style={{ marginVertical: space.xl }}>
-        <View>
-          <Label>Pay</Label>
-          <Money pence={project.budgetPence} size={30} />
-        </View>
-        <View>
-          <Label>Time</Label>
-          <Body style={{ fontFamily: fonts.bold, fontSize: 22, marginTop: 4 }}>{project.estimatedHours}h</Body>
-        </View>
-        <View>
-          <Label>Rate</Label>
-          <Body style={{ fontFamily: fonts.bold, fontSize: 22, marginTop: 4 }}>{formatGBP(hourlyRatePence(project.budgetPence, project.estimatedHours))}/h</Body>
-        </View>
-      </Row>
-
-      <Card style={{ backgroundColor: colors.surfaceAlt, borderWidth: 0 }}>
-        <Body>{project.brief}</Body>
-        <Gap size={space.lg} />
-        <Chips items={project.skills} onGrey />
-        <Muted style={{ marginTop: space.lg, fontSize: 13 }}>Due within {project.durationDays} days of starting</Muted>
-      </Card>
-      <Row gap={6} style={{ marginBottom: space.xl, marginTop: space.sm }}>
-        <Body style={{ color: colors.moneyText, fontSize: 13, fontFamily: fonts.semibold }}>Protected payment</Body>
-        <Muted style={{ fontSize: 13 }}>· held before work starts</Muted>
-      </Row>
-
       {isOwner || me.role === 'admin' ? <OwnerView project={project} /> : me.role === 'student' ? <ApplyBox project={project} /> : null}
     </Screen>
   );

@@ -15,7 +15,7 @@ export default function MyWork() {
 
   if (!contracts || !applications) return <Screen title="My work"><Loading /></Screen>;
   return (
-    <Screen title="My work">
+    <Screen title="My work" refreshable>
       <Row gap={space.md} style={{ marginBottom: space.xl }}>
         <Card style={{ flex: 1, marginBottom: 0 }}>
           <Label>Earned</Label>

@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps, ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text as RNText, TextInput, View,
+  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text as RNText, TextInput, View,
   type StyleProp, type TextStyle, type ViewStyle, type TextInputProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fonts, radius, space, useTheme } from '@/theme';
 import { haptic } from '@/lib/haptics';
+import { getApi } from '@/lib/api';
 import { formatGBP } from '@/lib/fees';
+import { PressableScale } from './motion';
 import { initials } from '@/lib/format';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -15,12 +17,21 @@ export type IconName = ComponentProps<typeof Ionicons>['name'];
 // ---------- Layout ----------
 
 export function Screen({
-  children, scroll = true, title, subtitle, right, padded = true, edges = ['top'],
+  children, scroll = true, title, subtitle, right, padded = true, edges = ['top'], refreshable = false,
 }: {
   children?: ReactNode; scroll?: boolean; title?: string; subtitle?: string; right?: ReactNode; padded?: boolean;
   edges?: ('top' | 'bottom')[];
+  /** Pull to refresh: reloads every screen's data. */
+  refreshable?: boolean;
 }) {
   const { colors } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = () => {
+    setRefreshing(true);
+    getApi().refresh();
+    haptic.tap();
+    setTimeout(() => setRefreshing(false), 600);
+  };
   const header = title ? (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
@@ -42,6 +53,7 @@ export function Screen({
         <ScrollView
           contentContainerStyle={[padded && styles.padded, { paddingBottom: space.xxxl }]}
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshable ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} /> : undefined}
         >
           {body}
         </ScrollView>
@@ -119,21 +131,17 @@ export function Button({
   const fg = { primary: colors.primaryText, secondary: colors.text, ghost: colors.primary, money: '#FFFFFF', danger: colors.danger }[variant];
   const inactive = disabled || loading;
   return (
-    <Pressable
+    <PressableScale
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive }}
       disabled={inactive}
+      scaleTo={small ? 0.94 : 0.97}
       onPress={() => {
         if (hapticKind !== 'none') haptic[hapticKind === 'success' ? 'success' : 'tap']();
         onPress?.();
       }}
-      style={({ pressed }) => [
-        styles.button,
-        small && styles.buttonSmall,
-        { backgroundColor: bg, opacity: inactive ? 0.45 : pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        style,
-      ]}
+      style={[styles.button, small && styles.buttonSmall, { backgroundColor: bg, opacity: inactive ? 0.45 : 1 }, style]}
     >
       {loading ? (
         <ActivityIndicator color={fg} />
@@ -143,7 +151,7 @@ export function Button({
           <RNText style={[styles.buttonText, small && { fontSize: 14 }, { color: fg }]}>{title}</RNText>
         </Row>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -217,9 +225,9 @@ export function Card({ children, onPress, style, testID }: { children: ReactNode
   const base = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, style];
   if (!onPress) return <View style={base}>{children}</View>;
   return (
-    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [base, { opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
+    <PressableScale testID={testID} onPress={onPress} scaleTo={0.98} style={base}>
       {children}
-    </Pressable>
+    </PressableScale>
   );
 }
 

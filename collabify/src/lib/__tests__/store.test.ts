@@ -35,7 +35,7 @@ describe('demo store: the full project lifecycle', () => {
     await expect(api.requestCode('someone@gmail.com', 'student')).rejects.toThrow('.ac.uk');
     await signIn(api, SARA, 'business');
     await expect(
-      api.createProject({ title: 'Cheap logo', category: 'Design', brief: 'A logo with a couple of concepts for our new brand.', budgetPence: 10000, estimatedHours: 10, durationDays: 7, skills: [] }),
+      api.createProject({ title: 'Cheap logo', category: 'Design', brief: 'A logo with a couple of concepts for our new brand.', budgetPence: 10000, estimatedHours: 10, durationDays: 7, skills: [], deliverables: ['Logo'], level: 'beginner', workMode: 'remote', city: '' }),
     ).rejects.toThrow('£12.71');
   });
 
@@ -166,8 +166,8 @@ describe('demo store: account deletion', () => {
   it('a deleted business has its open projects closed', async () => {
     const api = freshApi();
     await signIn(api, 'new@startup.demo', 'business');
-    await api.completeOnboarding({ role: 'business', fullName: 'New Founder', companyName: 'New Co', website: '' });
-    const p = await api.createProject({ title: 'Logo for New Co', category: 'Design', brief: 'A simple logo with two concepts for our brand.', budgetPence: 20000, estimatedHours: 10, durationDays: 7, skills: ['Figma'] });
+    await api.completeOnboarding({ role: 'business', fullName: 'New Founder', companyName: 'New Co', website: '', industry: 'Retail', companySize: 'Just me', location: 'Leeds', about: '' });
+    const p = await api.createProject({ title: 'Logo for New Co', category: 'Design', brief: 'A simple logo with two concepts for our brand.', budgetPence: 20000, estimatedHours: 10, durationDays: 7, skills: ['Figma'], deliverables: ['Logo files'], level: 'beginner', workMode: 'remote', city: '' });
     await api.deleteAccount();
     expect((await api.getProject(p.id))?.status).toBe('cancelled');
     expect((await api.listOpenProjects()).some((x) => x.id === p.id)).toBe(false);
@@ -241,5 +241,38 @@ describe('demo store: invites', () => {
     await expect(api.inviteStudent('p_portal', 's_tom')).rejects.toThrow('Not your project');
     await signIn(api, SARA, 'business');
     await expect(api.inviteStudent('p_social', 's_maya')).rejects.toThrow('open'); // in progress
+  });
+});
+
+describe('demo store: listings', () => {
+  it('companies show an accurate, computed track record', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const before = (await api.getBusiness('b_sara'))!;
+    expect(before).toMatchObject({ industry: 'Food & drink', companySize: '2–10', location: 'Bristol' });
+    expect(before.stats).toMatchObject({ studentsHired: 2, paidProjects: 1, openProjects: 2 });
+    const c = await api.hire('a3');
+    await api.fundContract(c.id);
+    expect((await api.getBusiness('b_sara'))!.stats).toMatchObject({ studentsHired: 2, openProjects: 1 }); // Maya was already hired once
+  });
+
+  it('projects carry deliverables, level and where the work happens', async () => {
+    const api = freshApi();
+    const logo = (await api.getProject('p_logo'))!;
+    expect(logo.deliverables).toEqual(['2\u20133 concepts', 'Final logo (SVG, PNG)', 'One-page brand guide']);
+    expect(logo.brief).not.toMatch(/Deliverables/);
+    expect((await api.getProject('p_social'))!).toMatchObject({ workMode: 'hybrid', city: 'Bristol' });
+    await signIn(api, SARA, 'business');
+    const base = { title: 'Stall branding', category: 'Design', brief: 'Branding for a weekend market stall in Bristol.', budgetPence: 30000, estimatedHours: 20, durationDays: 10, skills: [], level: 'beginner' as const };
+    await expect(api.createProject({ ...base, deliverables: [], workMode: 'remote', city: '' })).rejects.toThrow('deliverable');
+    await expect(api.createProject({ ...base, deliverables: ['Logo'], workMode: 'in_person', city: '' })).rejects.toThrow('city');
+    const p = await api.createProject({ ...base, deliverables: ['Logo', ' '], workMode: 'in_person', city: 'Bristol' });
+    expect(p).toMatchObject({ deliverables: ['Logo'], workMode: 'in_person', city: 'Bristol' });
+  });
+
+  it('lists a company\u2019s open projects', async () => {
+    const api = freshApi();
+    const dan = await api.listOpenProjects({ businessId: 'b_dan' });
+    expect(dan.map((p) => p.id).sort()).toEqual(['p_logo', 'p_research']);
   });
 });

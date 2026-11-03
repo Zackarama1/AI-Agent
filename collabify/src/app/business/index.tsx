@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { ActivityBell } from '@/components/ActivityBell';
+import { FadeIn, SkeletonCard } from '@/components/motion';
 import { ContractPill, ProjectPill } from '@/components/domain';
-import { Button, Card, Empty, Gap, Heading, Loading, Money, Muted, Row, Screen } from '@/components/ui';
+import { Button, Card, Empty, Gap, Heading, Money, Muted, Row, Screen } from '@/components/ui';
 import { daysUntil } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { useQuery } from '@/lib/useQuery';
@@ -19,17 +20,17 @@ export default function BusinessProjects() {
   const { data: projects } = useQuery((api) => api.listMyProjects());
   const { data: all } = useQuery((api) => api.listMyContracts());
   const contracts = all?.filter((c) => c.status !== 'cancelled');
-  if (!projects || !contracts) return <Screen title="Projects"><Loading /></Screen>;
+  if (!projects || !contracts) return <Screen title="Projects"><SkeletonCard /><SkeletonCard /></Screen>;
   const action = contracts.filter((c) => NEXT_STEP[c.status]);
   const byProject = new Map(contracts.map((c) => [c.projectId, c]));
 
   return (
-    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}.`} right={<ActivityBell />}>
+    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}.`} right={<ActivityBell />} refreshable>
       {action.length > 0 ? (
         <>
           <Heading style={{ marginBottom: space.md }}>Needs you</Heading>
-          {action.map((c) => (
-            <Card key={c.id} onPress={() => router.push(`/contract/${c.id}`)} testID={`action-${c.id}`}>
+          {action.map((c, i) => (
+            <FadeIn key={c.id} index={i}><Card onPress={() => router.push(`/contract/${c.id}`)} testID={`action-${c.id}`}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <ContractPill status={c.status} />
                 <Money pence={c.amountPence} />
@@ -39,7 +40,7 @@ export default function BusinessProjects() {
                 {NEXT_STEP[c.status]} · {c.studentName}
                 {c.status === 'delivered' && c.autoReleaseAt ? ` · auto-pays in ${daysUntil(c.autoReleaseAt)}d` : ''}
               </Muted>
-            </Card>
+            </Card></FadeIn>
           ))}
           <Gap size={space.md} />
         </>
@@ -54,17 +55,17 @@ export default function BusinessProjects() {
           action={<Button title="Post a project" onPress={() => router.push('/business/post')} />}
         />
       ) : (
-        projects.map((p) => {
+        projects.map((p, i) => {
           const c = byProject.get(p.id);
           return (
-            <Card key={p.id} onPress={() => router.push(`/project/${p.id}`)} testID={`project-${p.id}`}>
+            <FadeIn key={p.id} index={i}><Card onPress={() => router.push(`/project/${p.id}`)} testID={`project-${p.id}`}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <ProjectPill status={p.status} />
                 <Money pence={p.budgetPence} />
               </Row>
               <Heading style={{ marginTop: space.md }}>{p.title}</Heading>
               <Muted>{c ? `With ${c.studentName}` : `${p.applicantCount} applicant${p.applicantCount === 1 ? '' : 's'}`}</Muted>
-            </Card>
+            </Card></FadeIn>
           );
         })
       )}

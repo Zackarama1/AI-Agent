@@ -28,14 +28,34 @@ export type StudentPrivate = {
   verifiedAt: string | null;
 };
 
+export const COMPANY_SIZES = ['Just me', '2–10', '11–50', '51–200', '200+'] as const;
+export type CompanySize = (typeof COMPANY_SIZES)[number] | '';
+
+/** Computed from real contracts, never self-reported. */
+export type BusinessStats = {
+  projectsPosted: number;
+  studentsHired: number;
+  paidProjects: number;
+  openProjects: number;
+  memberSince: string | null;
+};
+
 export type Business = {
   id: string;
   fullName: string;
   companyName: string;
   website: string;
+  industry: string;
+  companySize: CompanySize;
+  location: string;
+  about: string;
   plan: Plan;
   rating: { average: number | null; count: number };
+  stats: BusinessStats;
 };
+
+export type ProjectLevel = 'beginner' | 'intermediate' | 'advanced';
+export type WorkMode = 'remote' | 'hybrid' | 'in_person';
 
 export type ProjectStatus = 'open' | 'in_progress' | 'delivered' | 'completed' | 'cancelled';
 
@@ -50,6 +70,12 @@ export type Project = {
   estimatedHours: number;
   durationDays: number;
   skills: string[];
+  /** What the student hands over: the checklist the work is judged against. */
+  deliverables: string[];
+  level: ProjectLevel;
+  workMode: WorkMode;
+  /** Required unless the project is remote. */
+  city: string;
   status: ProjectStatus;
   /** Featured (paid, £19) listings sit at the top of the feed until this time. */
   featuredUntil: string | null;
@@ -58,7 +84,7 @@ export type Project = {
   applicantCount: number;
 };
 
-export type NewProject = Pick<Project, 'title' | 'category' | 'brief' | 'budgetPence' | 'estimatedHours' | 'durationDays' | 'skills'>;
+export type NewProject = Pick<Project, 'title' | 'category' | 'brief' | 'budgetPence' | 'estimatedHours' | 'durationDays' | 'skills' | 'deliverables' | 'level' | 'workMode' | 'city'>;
 
 export type ApplicationStatus = 'applied' | 'shortlisted' | 'hired' | 'declined';
 
@@ -121,7 +147,7 @@ export type AppNotification = {
   createdAt: string;
 };
 
-export type Brief = { title: string; brief: string; skills: string[]; estimatedHours: number; durationDays: number };
+export type Brief = { title: string; brief: string; skills: string[]; deliverables: string[]; level: ProjectLevel; estimatedHours: number; durationDays: number };
 
 export type AdminOverview = {
   metrics: {

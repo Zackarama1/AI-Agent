@@ -1,4 +1,5 @@
 import { feeFor } from '../fees';
+import type { CompanySize, ProjectLevel, WorkMode } from '../types';
 import type { DemoDb, DemoUser } from './store';
 
 /**
@@ -23,8 +24,12 @@ const student = (
     private: { universityEmail: email, payoutsEnabled, rightToWorkStatus: 'unknown', verifiedAt: daysAgo(60) },
   },
 });
-const business = (id: string, fullName: string, email: string, companyName: string, website: string, plan: 'free' | 'pro' | 'scale'): DemoUser => ({
-  id, role: 'business', fullName, email, business: { companyName, website, plan },
+const business = (
+  id: string, fullName: string, email: string, companyName: string, website: string, plan: 'free' | 'pro' | 'scale',
+  details: { industry: string; companySize: CompanySize; location: string; about: string; joinedDaysAgo: number },
+): DemoUser => ({
+  id, role: 'business', fullName, email,
+  business: { companyName, website, plan, industry: details.industry, companySize: details.companySize, location: details.location, about: details.about, createdAt: daysAgo(details.joinedDaysAgo) },
 });
 
 export function seed(): DemoDb {
@@ -33,42 +38,55 @@ export function seed(): DemoDb {
     student('s_tom', 'Tom Okafor', 'tom@student.demo.ac.uk', 'University of Manchester', 'Economics', 'Year 2', ['Social media', 'Canva', 'Copywriting', 'TikTok'], 'I run a 20k-follower TikTok for my society.'),
     student('s_lena', 'Lena Fischer', 'lena@student.demo.ac.uk', 'University of Edinburgh', 'Data Science MSc', 'Postgrad', ['Python', 'Excel', 'Data analysis', 'Research'], 'Dashboards, data cleaning and clear charts.'),
     student('s_ravi', 'Ravi Shah', 'ravi@student.demo.ac.uk', 'University of the Arts London', 'Graphic Design', 'Year 2', ['Figma', 'Branding', 'Illustrator'], 'Brand identities with personality.', false),
-    business('b_sara', 'Sara Mensah', 'sara@brewbox.demo', 'Brewbox (demo)', 'https://brewbox.example', 'free'),
-    business('b_dan', 'Daniel Harris', 'dan@tidyly.demo', 'Tidyly (demo)', 'https://tidyly.example', 'pro'),
+    business('b_sara', 'Sara Mensah', 'sara@brewbox.demo', 'Brewbox (demo)', 'https://brewbox.example', 'free', {
+      industry: 'Food & drink', companySize: '2–10', location: 'Bristol', joinedDaysAgo: 75,
+      about: 'Specialty coffee subscriptions from independent UK roasters, delivered every fortnight. We\u2019re a team of four and we love working with students.',
+    }),
+    business('b_dan', 'Daniel Harris', 'dan@tidyly.demo', 'Tidyly (demo)', 'https://tidyly.example', 'pro', {
+      industry: 'Fintech', companySize: '11–50', location: 'London', joinedDaysAgo: 120,
+      about: 'Bookkeeping that does itself, for freelancers and sole traders. Seed-funded, 14 people, based in Shoreditch.',
+    }),
     { id: 'admin', role: 'admin', fullName: 'Collabify Team', email: 'admin@collabify.demo' },
   ];
 
   const db: DemoDb = { users, projects: [], applications: [], contracts: [], deliveries: [], reviews: [], messages: [], notifications: [], invites: [] };
 
+  // Briefs list deliverables as "• " lines; split them out into the structured field.
   const project = (
     id: string, businessId: string, title: string, category: string, brief: string, budget: number, hours: number, days: number,
     skills: string[], status: DemoDb['projects'][number]['status'], createdDaysAgo: number, featured = false,
-  ) => db.projects.push({
-    id, businessId, title, category, brief, budgetPence: budget * 100, estimatedHours: hours, durationDays: days, skills, status, featuredUntil: featured ? daysAhead(5) : null,
-    createdAt: daysAgo(createdDaysAgo),
-  });
+    extra: { level?: ProjectLevel; workMode?: WorkMode; city?: string; deliverables?: string[] } = {},
+  ) => {
+    const [summary, list = ''] = brief.replace(/^What we need\n/, '').split('\n\nDeliverables\n');
+    db.projects.push({
+      id, businessId, title, category, brief: summary, budgetPence: budget * 100, estimatedHours: hours, durationDays: days, skills, status,
+      deliverables: extra.deliverables ?? list.split('\n').map((l) => l.replace(/^\u2022\s*/, '').trim()).filter(Boolean),
+      level: extra.level ?? 'intermediate', workMode: extra.workMode ?? 'remote', city: extra.city ?? '',
+      featuredUntil: featured ? daysAhead(5) : null, createdAt: daysAgo(createdDaysAgo),
+    });
+  };
 
   project('p_logo', 'b_dan', 'Logo and brand kit', 'Design',
     'What we need\nA friendly, trustworthy logo for a bookkeeping app for freelancers.\n\nDeliverables\n• 2–3 concepts\n• Final logo (SVG, PNG)\n• One-page brand guide',
     300, 18, 10, ['Branding', 'Figma', 'Illustrator'], 'open', 1, true);
   project('p_portal', 'b_sara', 'Subscription account page', 'Development',
     'What we need\nA page where customers can pause, skip or change their coffee subscription, built in React against our existing API.\n\nDeliverables\n• Working code in our repo\n• Preview link',
-    900, 60, 28, ['React', 'JavaScript', 'CSS'], 'open', 2);
+    900, 60, 28, ['React', 'JavaScript', 'CSS'], 'open', 2, false, { level: 'advanced' });
   project('p_research', 'b_dan', 'Competitor pricing research', 'Research',
     'What we need\nMap 12 competitors: pricing, features and positioning.\n\nDeliverables\n• Spreadsheet\n• One-page summary',
-    180, 12, 7, ['Research', 'Excel'], 'open', 3);
+    180, 12, 7, ['Research', 'Excel'], 'open', 3, false, { level: 'beginner' });
   project('p_survey', 'b_sara', 'Customer survey insights', 'Data',
     'What we need\nAnalyse 1,400 survey responses and tell us what our customers want next.\n\nDeliverables\n• Charts\n• Short slide deck',
     280, 16, 14, ['Data analysis', 'Excel', 'Python'], 'open', 4);
   project('p_social', 'b_sara', 'Two weeks of TikTok content', 'Social media',
     'What we need\nPlan, film and post short videos for our launch.\n\nDeliverables\n• Content calendar\n• 8 posts',
-    450, 30, 14, ['Social media', 'TikTok', 'Canva'], 'in_progress', 9);
+    450, 30, 14, ['Social media', 'TikTok', 'Canva'], 'in_progress', 9, false, { workMode: 'hybrid', city: 'Bristol' });
   project('p_landing', 'b_sara', 'Launch landing page', 'Development',
     'What we need\nA fast, mobile-first landing page with a waitlist form.',
-    450, 30, 14, ['React', 'CSS', 'Figma'], 'completed', 40);
+    450, 30, 14, ['React', 'CSS', 'Figma'], 'completed', 40, false, { deliverables: ['Responsive landing page', 'Waitlist form connected to our email tool'] });
   project('p_churn', 'b_dan', 'Churn dashboard', 'Data',
     'What we need\nFind why customers cancel and build a dashboard we can keep updating.',
-    550, 35, 21, ['Python', 'Data analysis'], 'delivered', 20);
+    550, 35, 21, ['Python', 'Data analysis'], 'delivered', 20, false, { level: 'advanced', deliverables: ['Churn analysis write-up', 'Live dashboard'] });
 
   const apply = (id: string, projectId: string, studentId: string, pitch: string, status: DemoDb['applications'][number]['status'], d: number) =>
     db.applications.push({ id, projectId, studentId, pitch, status, createdAt: daysAgo(d) });

@@ -4,6 +4,8 @@ import { feeFor, formatGBP, hourlyRatePence, type Plan, PLANS } from '@/lib/fees
 import { CONTRACT_LABEL, PROJECT_LABEL, timeAgo } from '@/lib/format';
 import type { Contract, ContractStatus, Project, ProjectStatus } from '@/lib/types';
 import { fonts, space, useTheme } from '@/theme';
+import { LEVEL_LABEL, whereLabel } from '@/lib/projectRules';
+import { CompanyLogo } from './company';
 import { Body, Card, Divider, Heading, LineItem, Money, Muted, Pill, Row } from './ui';
 
 const CONTRACT_TONE: Record<ContractStatus, 'neutral' | 'primary' | 'money' | 'warning' | 'danger'> = {
@@ -25,11 +27,15 @@ export function ProjectCard({ project, onPress, matchScore, showStatus, invited 
           {invited ? <Pill label="Invited" tone="money" /> : null}
           {project.featured ? <Pill label="Featured" tone="primary" /> : null}
           <Pill label={project.category} />
+          {project.level === 'beginner' ? <Pill label={LEVEL_LABEL.beginner} tone="money" /> : null}
         </Row>
         {showStatus ? <ProjectPill status={project.status} /> : <Muted style={{ fontSize: 13 }}>{timeAgo(project.createdAt)}</Muted>}
       </Row>
       <Heading>{project.title}</Heading>
-      <Muted style={{ marginTop: 2 }}>{project.companyName}</Muted>
+      <Row style={{ marginTop: space.sm }}>
+        <CompanyLogo name={project.companyName} size={22} />
+        <Muted style={{ fontSize: 14, flex: 1 }} numberOfLines={1}>{project.companyName} · {whereLabel(project)}</Muted>
+      </Row>
       <Row style={{ justifyContent: 'space-between', marginTop: space.lg }}>
         <Row gap={space.md}>
           <Money pence={project.budgetPence} size={22} />
