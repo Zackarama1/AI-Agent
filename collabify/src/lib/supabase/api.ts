@@ -276,6 +276,40 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (!data?.length) throw new ApiError('You can\u2019t withdraw this application');
       changed();
     },
+    async suggestStudents(projectId) {
+      const [project, studentRows, apps, invites] = await Promise.all([
+        api.getProject(projectId),
+        sb.from('students').select(STUDENT_SELECT).limit(500),
+        sb.from('applications').select('student_id').eq('project_id', projectId),
+        sb.from('project_invites').select('student_id').eq('project_id', projectId),
+      ]);
+      if (!project) throw new ApiError('Project not found');
+      const applied = new Set((apps.data ?? []).map((a) => a.student_id));
+      const invited = new Set((invites.data ?? []).map((i) => i.student_id));
+      // Cheap first pass on skills, then load ratings only for the shortlist.
+      const rows = (studentRows.data ?? []).filter((r) => !applied.has(r.id) && r.profile?.full_name !== 'Deleted user');
+      const rough = rows
+        .map((r) => ({ r, score: matchScore(project, { skills: r.skills ?? [], rating: { average: null, count: 0 }, completedCount: 0 }) }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+      const full = await Promise.all(rough.map(async ({ r }) => {
+        const student = await toStudent(r);
+        return { student, score: matchScore(project, student), invited: invited.has(r.id) };
+      }));
+      return full.sort((a, b) => b.score - a.score).slice(0, 5);
+    },
+    async inviteStudent(projectId, studentId) {
+      const { error } = await sb.from('project_invites').insert({ project_id: projectId, student_id: studentId });
+      if (error && error.code === '23505') throw new ApiError('Already invited');
+      fail(error);
+      changed();
+    },
+    async listMyInvites() {
+      const { data, error } = await sb.from('project_invites').select('project_id').eq('student_id', await uid());
+      fail(error);
+      return (data ?? []).map((i) => i.project_id);
+    },
     async hire(applicationId) {
       const row = (await write(sb.rpc('hire_student', { p_application_id: applicationId }))) as Row;
       const c = await api.getContract(row.id);

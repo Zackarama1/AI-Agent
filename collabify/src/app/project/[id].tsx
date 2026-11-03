@@ -16,6 +16,9 @@ import { fonts, space, useTheme } from '@/theme';
 function ApplyBox({ project }: { project: Project }) {
   const { data: mine } = useQuery((api) => api.getMyApplication(project.id), [project.id]);
   const { data: contract } = useQuery((api) => api.getContractForProject(project.id), [project.id]);
+  const { data: invites } = useQuery((api) => api.listMyInvites());
+  const invited = Boolean(invites?.includes(project.id));
+  const { colors } = useTheme();
   const [pitch, setPitch] = useState('');
   const { busy, error, run } = useAction();
   if (mine === undefined) return <Loading />;
@@ -38,6 +41,12 @@ function ApplyBox({ project }: { project: Project }) {
   if (project.status !== 'open') return <Muted>This project is no longer taking applications.</Muted>;
   return (
     <View>
+      {invited ? (
+        <Card style={{ backgroundColor: colors.primarySoft, borderWidth: 0 }}>
+          <Heading>You&apos;re invited</Heading>
+          <Muted style={{ marginTop: 4 }}>{project.companyName} would like you to apply.</Muted>
+        </Card>
+      ) : null}
       <Heading style={{ marginBottom: space.md }}>Apply</Heading>
       <Field testID="pitch" value={pitch} onChangeText={setPitch} multiline placeholder="Why you? Mention relevant work, coursework or links." />
       <ErrorText>{error}</ErrorText>
@@ -143,6 +152,42 @@ function OwnerActions({ project }: { project: Project }) {
   );
 }
 
+function Suggestions({ project }: { project: Project }) {
+  const { data } = useQuery((api) => api.suggestStudents(project.id), [project.id]);
+  const { busy, error, run } = useAction();
+  if (project.status !== 'open' || !data || data.length === 0) return null;
+  return (
+    <View style={{ marginBottom: space.lg }}>
+      <Heading>Invite students</Heading>
+      <Muted style={{ marginTop: 2, marginBottom: space.md }}>Best matches who haven&apos;t applied yet.</Muted>
+      <ErrorText>{error}</ErrorText>
+      {data.map(({ student, score, invited }) => (
+        <Card key={student.id} style={{ paddingVertical: space.lg }}>
+          <Row gap={space.md}>
+            <Avatar name={student.fullName} />
+            <View style={{ flex: 1 }}>
+              <Body style={{ fontFamily: fonts.semibold }} numberOfLines={1}>{student.fullName}</Body>
+              <Muted style={{ fontSize: 13 }} numberOfLines={1}>{student.university}</Muted>
+            </View>
+            <Pill label={`${score}%`} tone="primary" />
+            {invited ? (
+              <Pill label="Invited" tone="money" />
+            ) : (
+              <Button
+                testID={`invite-${student.id}`}
+                small
+                title="Invite"
+                disabled={busy}
+                onPress={() => run(() => getApi().inviteStudent(project.id, student.id))}
+              />
+            )}
+          </Row>
+        </Card>
+      ))}
+    </View>
+  );
+}
+
 function OwnerView({ project }: { project: Project }) {
   const { data: applicants } = useQuery((api) => api.listApplicants(project.id), [project.id]);
   const { data: contract } = useQuery((api) => api.getContractForProject(project.id), [project.id]);
@@ -158,6 +203,7 @@ function OwnerView({ project }: { project: Project }) {
         </Card>
       ) : null}
       <Gap size={space.md} />
+      {applicants ? <Suggestions project={project} /> : null}
       <Heading style={{ marginBottom: space.md }}>Applicants</Heading>
       {!applicants ? <Loading /> : applicants.length === 0 ? (
         <Empty icon="people-outline" title="No applicants yet" text="Most projects get their first application within a day." />

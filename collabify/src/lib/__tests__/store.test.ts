@@ -212,3 +212,34 @@ describe('demo store: notifications', () => {
     expect((await api.listNotifications()).every((n) => n.readAt)).toBe(true);
   });
 });
+
+describe('demo store: invites', () => {
+  it('suggests matching students who have not applied, and remembers invites', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const survey = await api.suggestStudents('p_survey'); // data project: Lena matches, already invited in the seed
+    expect(survey[0]).toMatchObject({ student: { id: 's_lena' }, invited: true });
+    await expect(api.inviteStudent('p_survey', 's_lena')).rejects.toThrow('Already invited');
+    expect(await api.suggestStudents('p_portal')).toEqual([]); // only Maya knows React, and she applied
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    const logo = await api.suggestStudents('p_logo');
+    expect(logo.some((s) => ['s_maya', 's_ravi'].includes(s.student.id))).toBe(false); // both applied
+  });
+
+  it('the student is notified and sees the invite', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    await api.inviteStudent('p_survey', 's_tom');
+    await signIn(api, 'tom@student.demo.ac.uk');
+    expect(await api.listMyInvites()).toContain('p_survey');
+    expect((await api.listNotifications())[0]).toMatchObject({ kind: 'invited', link: '/project/p_survey' });
+  });
+
+  it('only the owner can invite, only to open projects', async () => {
+    const api = freshApi();
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    await expect(api.inviteStudent('p_portal', 's_tom')).rejects.toThrow('Not your project');
+    await signIn(api, SARA, 'business');
+    await expect(api.inviteStudent('p_social', 's_maya')).rejects.toThrow('open'); // in progress
+  });
+});

@@ -237,6 +237,27 @@ select notify('00000000-0000-0000-0000-00000000000b', 'test', 'No device', '', '
 select pg_temp.check((select count(*) from net.calls) = 1, 'push sent only for users with a device');
 select pg_temp.check((select headers ->> 'x-push-secret' = 'push-secret' and body ? 'notification_id' from net.calls), 'push call carries the secret and notification id');
 
+-- ===== Invites =====
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+insert into projects (business_id, title, category, brief, budget_pence, estimated_hours, skills)
+  values (auth.uid(), 'Social media audit', 'Marketing', 'Review our Instagram and TikTok and suggest five quick wins.', 15000, 8, array['Social media']);
+reset role;
+select id as p4 from projects where title = 'Social media audit' \gset
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+insert into project_invites (project_id, student_id) values (:'p4', '00000000-0000-0000-0000-00000000000c');
+select pg_temp.expect_error($$insert into project_invites (project_id, student_id) values ((select id from projects where title = 'Social media audit'), '00000000-0000-0000-0000-00000000000c')$$, 'no duplicate invites');
+select pg_temp.expect_error($$insert into project_invites (project_id, student_id) values ((select id from projects where title = 'Competitor research'), '00000000-0000-0000-0000-00000000000c')$$, 'cannot invite to a cancelled project');
+select pg_temp.expect_error($$insert into project_invites (project_id, student_id) values ((select id from projects where title = 'Social media audit'), '00000000-0000-0000-0000-00000000000b')$$, 'cannot invite a non-student');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+select pg_temp.check((select count(*) from project_invites) = 1, 'student sees their invite');
+select pg_temp.check(exists (select 1 from notifications where kind = 'invited' and body like 'Startup Ltd would like you to apply for Social media audit · £150.'), 'student notified of the invite with the pay');
+select pg_temp.expect_error($$insert into project_invites (project_id, student_id) values ((select id from projects where title = 'Social media audit'), auth.uid())$$, 'students cannot invite themselves');
+reset role;
+
 -- ===== Guard: no table-wide write access for app users beyond this allowlist =====
 -- Supabase grants ALL on new tables by default; every migration that creates a table must revoke it.
 select pg_temp.check(
@@ -244,5 +265,5 @@ select pg_temp.check(
    from information_schema.role_table_grants
    where table_schema = 'public' and grantee in ('anon', 'authenticated')
      and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
-     and (table_name, privilege_type) not in (('push_tokens', 'INSERT'), ('push_tokens', 'DELETE'), ('applications', 'DELETE'))), '') = '',
+     and (table_name, privilege_type) not in (('push_tokens', 'INSERT'), ('push_tokens', 'DELETE'), ('applications', 'DELETE'), ('project_invites', 'INSERT'))), '') = '',
   'no unexpected table-wide write grants');

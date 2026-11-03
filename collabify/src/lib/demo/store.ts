@@ -35,6 +35,7 @@ export type DemoDb = {
   reviews: Review[];
   messages: Message[];
   notifications: (AppNotification & { userId: string })[];
+  invites: { projectId: string; studentId: string; createdAt: string }[];
 };
 
 const DEMO_CODE_LENGTH = 6;
@@ -405,6 +406,36 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       if (!['applied', 'shortlisted'].includes(db.applications[i].status)) throw new ApiError('You can\u2019t withdraw this application');
       db.applications.splice(i, 1);
       changed();
+    },
+    async suggestStudents(projectId) {
+      const u = requireRole('business');
+      const p = db.projects.find((x) => x.id === projectId);
+      if (!p || p.businessId !== u.id) throw new ApiError('Not your project');
+      return db.users
+        .filter((x) => x.role === 'student' && !x.email.startsWith('deleted-'))
+        .filter((x) => !db.applications.some((a) => a.projectId === p.id && a.studentId === x.id))
+        .map((x) => {
+          const student = toStudent(x);
+          return { student, score: matchScore(p, student), invited: db.invites.some((i) => i.projectId === p.id && i.studentId === x.id) };
+        })
+        .filter((s) => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+    },
+    async inviteStudent(projectId, studentId) {
+      const u = requireRole('business');
+      const p = db.projects.find((x) => x.id === projectId);
+      if (!p || p.businessId !== u.id) throw new ApiError('Not your project');
+      if (p.status !== 'open') throw new ApiError('Only open projects can send invites');
+      if (user(studentId)?.role !== 'student') throw new ApiError('You can only invite students');
+      if (db.invites.some((i) => i.projectId === projectId && i.studentId === studentId)) throw new ApiError('Already invited');
+      db.invites.push({ projectId, studentId, createdAt: now() });
+      notify(studentId, 'invited', 'You\u2019re invited to apply', `${u.business!.companyName} would like you to apply for ${p.title} \u00b7 ${formatGBP(p.budgetPence)}.`, `/project/${p.id}`);
+      changed();
+    },
+    async listMyInvites() {
+      const u = requireRole('student');
+      return db.invites.filter((i) => i.studentId === u.id).map((i) => i.projectId);
     },
     async hire(applicationId) {
       // Mirrors the hire_student() security-definer function in the database.

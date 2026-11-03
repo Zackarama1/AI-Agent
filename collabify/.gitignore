@@ -9,3 +9,5 @@ android/
 *.log
 .DS_Store
 .env.*
+dist-preview/
+preview/

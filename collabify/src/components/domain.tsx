@@ -16,12 +16,13 @@ const PROJECT_TONE: Record<ProjectStatus, 'neutral' | 'primary' | 'money' | 'war
 };
 export const ProjectPill = ({ status }: { status: ProjectStatus }) => <Pill label={PROJECT_LABEL[status]} tone={PROJECT_TONE[status]} />;
 
-export function ProjectCard({ project, onPress, matchScore, showStatus }: { project: Project; onPress: () => void; matchScore?: number; showStatus?: boolean }) {
+export function ProjectCard({ project, onPress, matchScore, showStatus, invited }: { project: Project; onPress: () => void; matchScore?: number; showStatus?: boolean; invited?: boolean }) {
   const { colors } = useTheme();
   return (
     <Card onPress={onPress} testID={`project-${project.id}`}>
       <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
         <Row gap={6}>
+          {invited ? <Pill label="Invited" tone="money" /> : null}
           {project.featured ? <Pill label="Featured" tone="primary" /> : null}
           <Pill label={project.category} />
         </Row>

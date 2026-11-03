@@ -1,6 +1,6 @@
 import type {
   AdminOverview, AppNotification, Application, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
-  Profile, Project, Review, Role, Student, StudentPrivate,
+  Profile, Project, Review, Role, Student, StudentPrivate, Suggestion,
 } from './types';
 import type { Plan } from './fees';
 
@@ -59,6 +59,11 @@ export interface Api {
   listApplicants(projectId: string): Promise<Application[]>;
   setApplicationStatus(applicationId: string, status: 'shortlisted' | 'declined'): Promise<void>;
   withdrawApplication(applicationId: string): Promise<void>;
+  /** Best-matched students who haven't applied yet (business, own open project). */
+  suggestStudents(projectId: string): Promise<Suggestion[]>;
+  inviteStudent(projectId: string, studentId: string): Promise<void>;
+  /** Project ids the signed-in student has been invited to. */
+  listMyInvites(): Promise<string[]>;
   hire(applicationId: string): Promise<Contract>;
 
   // Contracts & payments

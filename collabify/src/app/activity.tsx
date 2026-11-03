@@ -13,7 +13,7 @@ const ICON: Record<string, IconName> = {
   application: 'person-add', recommended: 'sparkles', shortlisted: 'star', declined: 'close-circle', filled: 'checkmark-done',
   closed: 'close-circle', hired: 'rocket', funded: 'lock-closed', changes: 'create', delivered: 'cube', paid: 'cash',
   completed: 'checkmark-circle', problem: 'alert-circle', refunded: 'arrow-undo', cancelled: 'close-circle',
-  message: 'chatbubble', reviews: 'star', review_waiting: 'star-half',
+  message: 'chatbubble', invited: 'mail', reviews: 'star', review_waiting: 'star-half',
 };
 const MONEY = new Set(['paid', 'funded', 'refunded']);
 

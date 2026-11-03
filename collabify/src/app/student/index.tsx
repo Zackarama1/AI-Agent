@@ -17,6 +17,10 @@ export default function ProjectsFeed() {
   const { data: projects } = useQuery((api) => api.listOpenProjects({ search, category }), [search, category]);
   const { data: student } = useQuery((api) => api.getStudent(me.id), [me.id]);
   const { data: priv } = useQuery((api) => api.getMyStudentPrivate());
+  const { data: invites } = useQuery((api) => api.listMyInvites());
+  const invitedIds = new Set(invites ?? []);
+  // Projects you've been invited to come first.
+  const sorted = projects ? [...projects].sort((a, b) => Number(invitedIds.has(b.id)) - Number(invitedIds.has(a.id))) : undefined;
 
   return (
     <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}. Find something worth doing.`} right={<ActivityBell />}>
@@ -34,14 +38,14 @@ export default function ProjectsFeed() {
           {CATEGORIES.map((c) => <Chip key={c} label={c} selected={category === c} onPress={() => setCategory(category === c ? undefined : c)} />)}
         </Row>
       </ScrollView>
-      {!projects ? (
+      {!sorted ? (
         <Loading />
-      ) : projects.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <Empty icon="search" title="Nothing here yet" text="New projects are posted every week." />
       ) : (
         <View>
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} matchScore={student ? matchScore(p, student) : undefined} onPress={() => router.push(`/project/${p.id}`)} />
+          {sorted.map((p) => (
+            <ProjectCard key={p.id} project={p} invited={invitedIds.has(p.id)} matchScore={student ? matchScore(p, student) : undefined} onPress={() => router.push(`/project/${p.id}`)} />
           ))}
         </View>
       )}

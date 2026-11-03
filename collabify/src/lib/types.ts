@@ -108,6 +108,8 @@ export type ContractReviews = { mine: Review | null; theirs: Review | null; thei
 
 export type Message = { id: string; contractId: string; senderId: string; body: string; createdAt: string };
 
+export type Suggestion = { student: Student; score: number; invited: boolean };
+
 export type AppNotification = {
   id: string;
   kind: string;

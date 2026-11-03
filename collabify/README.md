@@ -14,6 +14,8 @@ With no Supabase env vars set, the app runs in **demo mode**: an in-memory store
 businesses, students and projects. On the welcome screen, tap a demo account (Student · Maya,
 Business · Brewbox, Admin). The one-time code is shown on screen. Demo data resets when the app reloads.
 
+Interactive preview: `node scripts/build-preview.mjs` builds `preview/collabify-preview.html`, a single self-contained page of the demo app.
+
 Checks:
 
 ```bash
@@ -34,6 +36,7 @@ supabase/tests/run.sh          # database rules, against a local Postgres (see b
 | Ask for changes after a delivery (payment stays held, auto-pay pauses), cancel an unpaid hire, cancel a project, withdraw an application, open delivered files | `contract/[id].tsx`, `project/[id].tsx` |
 | Report a problem → admin pays the student or refunds the business | `contract/[id].tsx`, `admin.tsx`, `resolve-dispute` |
 | Notifications: activity feed with unread badge, and push to phones (applications, hires, payment held, deliveries, changes, payments, problems, messages, reviews) | `activity.tsx`, `src/lib/push.ts`, notification triggers, `send-push` |
+| Invite students: best matches who haven't applied, one-tap invite, "Invited" badge and banner for the student | `project/[id].tsx`, `student/index.tsx`, `project_invites` |
 | Account deletion (refused while payment is held) | `DeleteAccount.tsx`, `delete-account` |
 | Featured listings (£19, 7 days) and Startup Pro / Scale plans, sold through Stripe Checkout in the browser | `project/[id].tsx`, `plans.tsx`, `billing-checkout` |
 | Admin hand-matching + metrics (fill rate, time to match, repeat clients) | `src/app/admin.tsx` |
