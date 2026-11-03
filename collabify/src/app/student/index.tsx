@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import { ActivityBell } from '@/components/ActivityBell';
 import { ProjectCard } from '@/components/domain';
 import { Button, Card, Chip, Empty, Field, Heading, Loading, Muted, Row, Screen } from '@/components/ui';
 import { CATEGORIES } from '@/lib/brief';
@@ -18,7 +19,7 @@ export default function ProjectsFeed() {
   const { data: priv } = useQuery((api) => api.getMyStudentPrivate());
 
   return (
-    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}. Find something worth doing.`}>
+    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}. Find something worth doing.`} right={<ActivityBell />}>
       {priv && !priv.payoutsEnabled ? (
         <Card style={{ marginBottom: space.lg }}>
           <Heading>Set up payouts</Heading>

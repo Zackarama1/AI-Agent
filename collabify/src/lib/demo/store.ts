@@ -1,9 +1,9 @@
 import { ApiError, type Api, type OnboardingInput } from '../api';
-import { AUTO_RELEASE_DAYS, FEATURED_DAYS, feeFor, isUkUniversityEmail, meetsMinimumRate, type Plan } from '../fees';
+import { AUTO_RELEASE_DAYS, FEATURED_DAYS, feeFor, formatGBP, isUkUniversityEmail, meetsMinimumRate, type Plan } from '../fees';
 import { matchScore } from '../matching';
 import { templateBrief } from '../brief';
 import type {
-  Application, ApplicationStatus, Business, Contract, ContractStatus, Delivery, Message, Profile, Project,
+  AppNotification, Application, ApplicationStatus, Business, Contract, ContractStatus, Delivery, Message, Profile, Project,
   ProjectStatus, Review, Role, Student, StudentPrivate,
 } from '../types';
 import { seed } from './seed';
@@ -34,6 +34,7 @@ export type DemoDb = {
   deliveries: Delivery[];
   reviews: Review[];
   messages: Message[];
+  notifications: (AppNotification & { userId: string })[];
 };
 
 const DEMO_CODE_LENGTH = 6;
@@ -118,6 +119,9 @@ export function createDemoApi(db: DemoDb = seed()): Api {
     c.status = 'released';
     c.releasedAt = now();
     setProjectStatus(c.projectId, 'completed');
+    const title = titleOf(c.projectId);
+    notify(c.studentId, 'paid', `You\u2019ve been paid ${formatGBP(c.amountPence)}`, `${title} is complete. Leave ${companyOf(c.businessId)} a review.`, `/contract/${c.id}`);
+    notify(c.businessId, 'completed', 'Project complete', `${title} is done. Leave ${nameOf(c.studentId)} a review.`, `/contract/${c.id}`);
   };
   const toContract = (c: DemoContract): Contract => {
     autoRelease(c);
@@ -142,6 +146,16 @@ export function createDemoApi(db: DemoDb = seed()): Api {
   const setContractStatus = (c: DemoContract, status: ContractStatus) => {
     c.status = status;
   };
+
+  // Mirrors the notification triggers in supabase/migrations/20261106000000_notifications.sql.
+  const notify = (userId: string, kind: string, title: string, body: string, link: string) => {
+    const u = user(userId);
+    if (!u || u.email.startsWith('deleted-')) return;
+    db.notifications.push({ id: id('n'), userId, kind, title, body, link, readAt: null, createdAt: now() });
+  };
+  const titleOf = (projectId: string) => db.projects.find((p) => p.id === projectId)?.title ?? '';
+  const nameOf = (userId: string) => user(userId)?.fullName ?? '';
+  const companyOf = (userId: string) => user(userId)?.business?.companyName ?? '';
 
   const api: Api = {
     mode: 'demo',
@@ -333,7 +347,10 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       if (p.status !== 'open') throw new ApiError('Only open projects can be cancelled');
       p.status = 'cancelled';
       p.featuredUntil = null;
-      db.applications.filter((a) => a.projectId === p.id && a.status !== 'declined').forEach((a) => (a.status = 'declined'));
+      db.applications.filter((a) => a.projectId === p.id && a.status !== 'declined').forEach((a) => {
+        a.status = 'declined';
+        notify(a.studentId, 'closed', 'Project closed', `${p.title} was closed by the business.`, `/project/${p.id}`);
+      });
       changed();
     },
 
@@ -345,6 +362,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       if (pitch.trim().length < 20) throw new ApiError('Write a couple of sentences about why you’re a good fit');
       if (db.applications.some((a) => a.projectId === projectId && a.studentId === u.id)) throw new ApiError('You’ve already applied');
       db.applications.push({ id: id('a'), projectId, studentId: u.id, pitch: pitch.trim(), status: 'applied', createdAt: now() });
+      notify(p.businessId, 'application', 'New applicant', `${u.fullName} applied to ${p.title}.`, `/project/${p.id}`);
       changed();
     },
     async getMyApplication(projectId) {
@@ -372,6 +390,11 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       const p = a && db.projects.find((x) => x.id === a.projectId);
       if (!a || !p || p.businessId !== u.id) throw new ApiError('Not your project');
       if (a.status === 'hired') throw new ApiError('This student is already hired');
+      if (status === 'shortlisted' && a.status === 'applied') {
+        notify(a.studentId, 'shortlisted', 'You\u2019re on the shortlist', `${p.title} \u00b7 ${formatGBP(p.budgetPence)}`, `/project/${p.id}`);
+      } else if (status === 'declined' && a.status !== 'declined') {
+        notify(a.studentId, 'declined', 'Not this time', `Your application to ${p.title} wasn\u2019t selected.`, `/project/${p.id}`);
+      }
       a.status = status;
       changed();
     },
@@ -403,8 +426,10 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       db.applications.filter((x) => x.projectId === p.id && x.id !== a.id && x.status !== 'declined').forEach((x) => {
         x.status = 'declined';
         x.autoDeclined = true;
+        notify(x.studentId, 'filled', 'Project filled', `${p.title} went to another student. Keep applying!`, `/project/${p.id}`);
       });
       p.status = 'in_progress';
+      notify(a.studentId, 'hired', 'You\u2019re hired!', `${u.business!.companyName} hired you for ${p.title}. Start once payment is held.`, `/contract/${c.id}`);
       changed();
       return toContract(c);
     },
@@ -432,6 +457,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       await new Promise((r) => setTimeout(r, 600)); // feels like a checkout
       setContractStatus(c, 'funded');
       c.fundedAt = now();
+      notify(c.studentId, 'funded', 'Payment held: start work', `${formatGBP(c.amountPence)} is held for ${titleOf(c.projectId)}.`, `/contract/${c.id}`);
       changed();
       return {};
     },
@@ -445,6 +471,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       c.deliveredAt = now();
       c.autoReleaseAt = new Date(Date.now() + AUTO_RELEASE_DAYS * 86400000).toISOString();
       setProjectStatus(c.projectId, 'delivered');
+      notify(c.businessId, 'delivered', 'Work delivered', `${nameOf(c.studentId)} delivered ${titleOf(c.projectId)}. It\u2019s paid automatically in 7 days unless you ask for changes.`, `/contract/${c.id}`);
       changed();
     },
     async listDeliveries(cid) {
@@ -465,6 +492,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       c.revisionCount += 1;
       setProjectStatus(c.projectId, 'in_progress');
       db.messages.push({ id: id('m'), contractId: c.id, senderId: u.id, body: `Changes requested: ${note.trim()}`, createdAt: now() });
+      notify(c.studentId, 'changes', 'Changes requested', `${companyOf(c.businessId)} asked for changes to ${titleOf(c.projectId)}. Payment is still held for you.`, `/contract/${c.id}`);
       changed();
     },
     async cancelContract(cid) {
@@ -480,6 +508,7 @@ export function createDemoApi(db: DemoDb = seed()): Api {
           a.autoDeclined = false;
         }
       }
+      notify(c.studentId, 'cancelled', 'Hire cancelled', `${companyOf(c.businessId)} cancelled the hire for ${titleOf(c.projectId)} before paying.`, `/project/${c.projectId}`);
       changed();
     },
     async approve(cid) {
@@ -497,6 +526,9 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       c.autoReleaseAt = null;
       c.issueReason = reason.trim();
       c.issueRaisedBy = me().id;
+      const title = titleOf(c.projectId);
+      notify(c.issueRaisedBy === c.studentId ? c.businessId : c.studentId, 'problem', 'A problem was reported', `On ${title}. The payment stays held while we help.`, `/contract/${c.id}`);
+      db.users.filter((x) => x.role === 'admin').forEach((x) => notify(x.id, 'problem', 'Problem to resolve', `${title} \u00b7 ${formatGBP(c.amountPence)}`, `/contract/${c.id}`));
       changed();
     },
 
@@ -511,6 +543,13 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         id: id('r'), contractId: cid, reviewerId: u.id, revieweeId: u.id === c.studentId ? c.businessId : c.studentId,
         rating, comment: comment.trim(), createdAt: now(),
       });
+      const reviewee = u.id === c.studentId ? c.businessId : c.studentId;
+      const title = titleOf(c.projectId);
+      if (bothReviewed(cid)) {
+        [u.id, reviewee].forEach((x) => notify(x, 'reviews', 'Reviews are in', `See what was said about ${title}.`, `/contract/${cid}`));
+      } else {
+        notify(reviewee, 'review_waiting', 'You\u2019ve got a review', `Leave yours for ${title} to see it.`, `/contract/${cid}`);
+      }
       changed();
     },
     async getContractReviews(cid) {
@@ -530,9 +569,11 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       return db.messages.filter((m) => m.contractId === cid);
     },
     async sendMessage(cid, body) {
-      contractFor(cid);
+      const c = contractFor(cid);
       if (!body.trim()) return;
-      db.messages.push({ id: id('m'), contractId: cid, senderId: me().id, body: body.trim(), createdAt: now() });
+      const sender = me();
+      db.messages.push({ id: id('m'), contractId: cid, senderId: sender.id, body: body.trim(), createdAt: now() });
+      notify(sender.id === c.studentId ? c.businessId : c.studentId, 'message', sender.fullName, body.trim().slice(0, 120), `/chat/${cid}`);
       changed();
     },
 
@@ -581,6 +622,11 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         id: id('a'), projectId, studentId, status: 'shortlisted', createdAt: now(),
         pitch: 'Recommended by the Collabify team as a strong match for this project.',
       });
+      const p = db.projects.find((x) => x.id === projectId);
+      if (p) {
+        notify(p.businessId, 'recommended', 'We found you a match', `${nameOf(studentId)} looks like a strong fit for ${p.title}.`, `/project/${p.id}`);
+        notify(studentId, 'shortlisted', 'You\u2019re on a shortlist', `The Collabify team recommended you for ${p.title}.`, `/project/${p.id}`);
+      }
       changed();
     },
     async adminResolve(cid, outcome) {
@@ -592,8 +638,29 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       } else {
         setContractStatus(c, 'refunded');
         setProjectStatus(c.projectId, 'cancelled');
+        const title = titleOf(c.projectId);
+        notify(c.businessId, 'refunded', 'Refunded', `You\u2019ve been refunded ${formatGBP(c.totalPence)} for ${title}.`, `/contract/${c.id}`);
+        notify(c.studentId, 'refunded', 'Project closed', `${title} was closed and the business refunded.`, `/contract/${c.id}`);
       }
       changed();
+    },
+
+    // ---------- Notifications ----------
+    async listNotifications() {
+      const u = me();
+      return db.notifications
+        .filter((n) => n.userId === u.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map(({ userId: _userId, ...n }) => n);
+    },
+    async markNotificationsRead() {
+      const u = me();
+      const at = now();
+      db.notifications.filter((n) => n.userId === u.id && !n.readAt).forEach((n) => (n.readAt = at));
+      changed();
+    },
+    async registerPushToken() {
+      // Demo mode doesn't send push notifications.
     },
   };
   return api;

@@ -108,6 +108,17 @@ export type ContractReviews = { mine: Review | null; theirs: Review | null; thei
 
 export type Message = { id: string; contractId: string; senderId: string; body: string; createdAt: string };
 
+export type AppNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  /** In-app route to open, e.g. /contract/123 */
+  link: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
 export type Brief = { title: string; brief: string; skills: string[]; estimatedHours: number; durationDays: number };
 
 export type AdminOverview = {

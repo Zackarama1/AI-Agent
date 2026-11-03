@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { Loading, type IconName } from './ui';
+import { usePush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import type { Role } from '@/lib/types';
 import { fonts, useTheme } from '@/theme';
@@ -10,6 +11,7 @@ import { fonts, useTheme } from '@/theme';
 export function RoleTabs({ role, tabs }: { role: Role; tabs: { name: string; title: string; icon: IconName }[] }) {
   const { profile } = useSession();
   const { colors } = useTheme();
+  usePush(Boolean(profile && profile.role === role));
   if (profile === undefined) return <Loading />;
   if (!profile) return <Redirect href="/welcome" />;
   if (profile.role !== role) return <Redirect href="/" />;

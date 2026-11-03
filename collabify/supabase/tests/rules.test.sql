@@ -197,3 +197,52 @@ select pg_temp.check((select full_name = 'Deleted user' and deleted_at is not nu
 select pg_temp.check(not exists (select 1 from student_private where id = '00000000-0000-0000-0000-00000000000a'), 'university email removed');
 select pg_temp.check((select count(*) from contracts where student_id = '00000000-0000-0000-0000-00000000000a' and status = 'released') = 1, 'completed contracts kept for the business');
 select pg_temp.check((select count(*) from reviews where reviewer_id = '00000000-0000-0000-0000-00000000000a') = 1, 'reviews kept');
+
+-- ===== Notifications (run after the flows above, which fired the triggers) =====
+-- Fay (business) got applicants, deliveries, completion; Other (student c) got hired, payment held, changes requested...
+select pg_temp.check((select count(*) from notifications where user_id = '00000000-0000-0000-0000-00000000000b' and kind = 'application') >= 2, 'business told about new applicants');
+select pg_temp.check(exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000c' and kind = 'hired'), 'student told they are hired');
+select pg_temp.check(exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000c' and kind = 'funded' and title = 'Payment held: start work'), 'student told payment is held');
+select pg_temp.check(exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000c' and kind = 'changes'), 'student told changes were requested');
+select pg_temp.check(exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000c' and kind = 'filled'), 'auto-declined student told the project was filled');
+select pg_temp.check(exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000b' and kind = 'delivered'), 'business told work was delivered');
+select pg_temp.check(exists (select 1 from notifications where kind = 'problem' and user_id = '00000000-0000-0000-0000-00000000000c'), 'other side told about a reported problem');
+select pg_temp.check(exists (select 1 from notifications where kind = 'reviews'), 'both told when reviews are revealed');
+select pg_temp.check(not exists (select 1 from notifications where user_id = '00000000-0000-0000-0000-00000000000a' and created_at > (select deleted_at from profiles where id = '00000000-0000-0000-0000-00000000000a')), 'deleted users get no new notifications');
+select pg_temp.check((select title from notifications where kind = 'paid' limit 1) = 'You''ve been paid £450', 'paid notification shows the amount');
+
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+select pg_temp.check((select bool_and(user_id = auth.uid()) from notifications), 'users only see their own notifications');
+update notifications set read_at = now();
+select pg_temp.check((select count(*) from notifications where read_at is null) = 0, 'users mark their notifications read');
+select pg_temp.expect_error($$update notifications set title = 'hacked'$$, 'users cannot edit notification text');
+select pg_temp.expect_error($$insert into notifications (user_id, kind, title) values (auth.uid(), 'x', 'fake')$$, 'users cannot create notifications');
+insert into push_tokens (token, user_id, platform) values ('ExponentPushToken[test]', auth.uid(), 'ios');
+reset role;
+select pg_temp.check((select count(*) from net.calls) = 0, 'no push sent before go-live configures it');
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+select claim_push_token('ExponentPushToken[shared-phone]', 'ios');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+select claim_push_token('ExponentPushToken[shared-phone]', 'ios');
+reset role;
+select pg_temp.check((select user_id from push_tokens where token = 'ExponentPushToken[shared-phone]') = '00000000-0000-0000-0000-00000000000c', 'a shared phone belongs to the latest sign-in');
+delete from push_tokens where token = 'ExponentPushToken[shared-phone]';
+select configure_push('https://example.supabase.co/functions/v1/send-push', 'push-secret');
+select notify('00000000-0000-0000-0000-00000000000c', 'test', 'Test push', '', '');
+select notify('00000000-0000-0000-0000-00000000000b', 'test', 'No device', '', '');
+select pg_temp.check((select count(*) from net.calls) = 1, 'push sent only for users with a device');
+select pg_temp.check((select headers ->> 'x-push-secret' = 'push-secret' and body ? 'notification_id' from net.calls), 'push call carries the secret and notification id');
+
+-- ===== Guard: no table-wide write access for app users beyond this allowlist =====
+-- Supabase grants ALL on new tables by default; every migration that creates a table must revoke it.
+select pg_temp.check(
+  coalesce((select string_agg(table_name || ':' || privilege_type, ', ' order by table_name, privilege_type)
+   from information_schema.role_table_grants
+   where table_schema = 'public' and grantee in ('anon', 'authenticated')
+     and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+     and (table_name, privilege_type) not in (('push_tokens', 'INSERT'), ('push_tokens', 'DELETE'), ('applications', 'DELETE'))), '') = '',
+  'no unexpected table-wide write grants');

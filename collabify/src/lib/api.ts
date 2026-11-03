@@ -1,5 +1,5 @@
 import type {
-  AdminOverview, Application, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
+  AdminOverview, AppNotification, Application, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
   Profile, Project, Review, Role, Student, StudentPrivate,
 } from './types';
 import type { Plan } from './fees';
@@ -86,6 +86,12 @@ export interface Api {
   // Messages
   listMessages(contractId: string): Promise<Message[]>;
   sendMessage(contractId: string, body: string): Promise<void>;
+
+  // Notifications
+  listNotifications(): Promise<AppNotification[]>;
+  markNotificationsRead(): Promise<void>;
+  /** Save this device's Expo push token for the signed-in user. */
+  registerPushToken(token: string, platform: string): Promise<void>;
 
   // Admin
   adminOverview(): Promise<AdminOverview>;

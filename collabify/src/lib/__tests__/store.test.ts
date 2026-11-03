@@ -173,3 +173,42 @@ describe('demo store: account deletion', () => {
     expect((await api.listOpenProjects()).some((x) => x.id === p.id)).toBe(false);
   });
 });
+
+describe('demo store: notifications', () => {
+  const kinds = async (api: ReturnType<typeof freshApi>) => (await api.listNotifications()).map((n) => n.kind);
+
+  it('tells each side what happened, and only them', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const c = await api.hire('a3');
+    await api.fundContract(c.id);
+    await signIn(api, MAYA);
+    expect(await kinds(api)).toEqual(expect.arrayContaining(['hired', 'funded']));
+    await api.deliver(c.id, 'Done, preview link inside.', []);
+    await api.sendMessage(c.id, 'Let me know what you think!');
+    await signIn(api, SARA, 'business');
+    const sara = await api.listNotifications();
+    expect(sara.map((n) => n.kind)).toEqual(expect.arrayContaining(['delivered', 'message']));
+    expect(sara.find((n) => n.kind === 'message')).toMatchObject({ title: 'Maya Patel', link: `/chat/${c.id}` });
+    expect(sara.some((n) => n.kind === 'hired')).toBe(false);
+    await api.approve(c.id);
+    await signIn(api, MAYA);
+    expect((await api.listNotifications())[0]).toMatchObject({ kind: 'paid', title: 'You’ve been paid £900' });
+  });
+
+  it('other applicants hear the project was filled', async () => {
+    const api = freshApi();
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    await api.hire('a2'); // Maya hired; Ravi (a1) auto-declined
+    await signIn(api, 'ravi@student.demo.ac.uk');
+    expect(await kinds(api)).toContain('filled');
+  });
+
+  it('marks everything read', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    expect((await api.listNotifications()).some((n) => !n.readAt)).toBe(true);
+    await api.markNotificationsRead();
+    expect((await api.listNotifications()).every((n) => n.readAt)).toBe(true);
+  });
+});

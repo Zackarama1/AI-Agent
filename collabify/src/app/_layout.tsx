@@ -47,6 +47,8 @@ export default function RootLayout() {
             <Stack.Screen name="people/[id]" options={detail} />
             <Stack.Screen name="plans" options={{ ...detail, presentation: 'modal' }} />
             <Stack.Screen name="admin" />
+            <Stack.Screen name="activity" options={detail} />
+            <Stack.Screen name="stripe-return" />
           </Stack>
         </SessionProvider>
       </ThemeProvider>

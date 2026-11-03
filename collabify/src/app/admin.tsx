@@ -3,7 +3,9 @@ import { Redirect, router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Avatar, Body, Button, Card, Empty, ErrorText, Gap, Heading, Label, Loading, Money, Muted, Pill, Row, Screen } from '@/components/ui';
+import { ActivityBell } from '@/components/ActivityBell';
 import { getApi } from '@/lib/api';
+import { usePush } from '@/lib/push';
 import { useMe, useSession } from '@/lib/session';
 import { useAction, useQuery } from '@/lib/useQuery';
 import { fonts, space } from '@/theme';
@@ -26,6 +28,7 @@ export default function Admin() {
 
 function AdminInner({ onSignOut }: { onSignOut: () => void }) {
   useMe();
+  usePush(true);
   const { data } = useQuery((api) => api.adminOverview());
   const { error, run, busy } = useAction();
   if (!data) return <Screen title="Matching"><Loading /></Screen>;
@@ -33,7 +36,7 @@ function AdminInner({ onSignOut }: { onSignOut: () => void }) {
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
   return (
-    <Screen title="Matching" subtitle="Hand-match the first projects." right={<Button small variant="ghost" title="Sign out" onPress={onSignOut} />}>
+    <Screen title="Matching" subtitle="Hand-match the first projects." right={<Row><ActivityBell /><Button small variant="ghost" title="Sign out" onPress={onSignOut} /></Row>}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md, marginBottom: space.xl }}>
         <Metric label="Fill rate" value={pct(m.fillRate)} />
         <Metric label="Time to match" value={m.medianHoursToMatch == null ? '–' : `${m.medianHoursToMatch}h`} />

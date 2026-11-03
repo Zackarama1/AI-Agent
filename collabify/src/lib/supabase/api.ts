@@ -6,7 +6,7 @@ import { matchScore } from '../matching';
 import { templateBrief } from '../brief';
 import { appReturnUrl } from '../stripeFlow';
 import type {
-  Application, Brief, Business, Contract, Delivery, Message, Profile, Project, Review, Student, StudentPrivate,
+  AppNotification, Application, Brief, Business, Contract, Delivery, Message, Profile, Project, Review, Student, StudentPrivate,
 } from '../types';
 
 /**
@@ -26,11 +26,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
   });
   const listeners = new Set<() => void>();
+  let pushToken: string | null = null;
   const changed = () => listeners.forEach((l) => l());
 
   // Live chat and status changes: refresh screens when rows change.
   sb.channel('collabify-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, changed)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, changed)
     .subscribe();
   sb.auth.onAuthStateChange(() => changed());
 
@@ -146,6 +148,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       changed();
     },
     async signOut() {
+      // Stop push notifications to this phone for the account that's leaving.
+      if (pushToken) await sb.from('push_tokens').delete().eq('token', pushToken);
       await sb.auth.signOut();
       changed();
     },
@@ -363,6 +367,23 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async sendMessage(contractId, body) {
       if (!body.trim()) return;
       await write(sb.from('messages').insert({ contract_id: contractId, sender_id: await uid(), body: body.trim() }));
+    },
+
+    // ---------- Notifications ----------
+    async listNotifications() {
+      const { data, error } = await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100);
+      fail(error);
+      return (data ?? []).map((n): AppNotification => ({
+        id: n.id, kind: n.kind, title: n.title, body: n.body, link: n.link, readAt: n.read_at, createdAt: n.created_at,
+      }));
+    },
+    async markNotificationsRead() {
+      await write(sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null).eq('user_id', await uid()));
+    },
+    async registerPushToken(token, platform) {
+      const { error } = await sb.rpc('claim_push_token', { p_token: token, p_platform: platform });
+      fail(error);
+      pushToken = token;
     },
 
     // ---------- Admin ----------

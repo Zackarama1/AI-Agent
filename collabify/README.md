@@ -33,6 +33,8 @@ supabase/tests/run.sh          # database rules, against a local Postgres (see b
 | Messages per project, blind reviews, public profiles | `chat/[id].tsx`, `contract/[id].tsx`, `people/[id].tsx` |
 | Ask for changes after a delivery (payment stays held, auto-pay pauses), cancel an unpaid hire, cancel a project, withdraw an application, open delivered files | `contract/[id].tsx`, `project/[id].tsx` |
 | Report a problem → admin pays the student or refunds the business | `contract/[id].tsx`, `admin.tsx`, `resolve-dispute` |
+| Notifications: activity feed with unread badge, and push to phones (applications, hires, payment held, deliveries, changes, payments, problems, messages, reviews) | `activity.tsx`, `src/lib/push.ts`, notification triggers, `send-push` |
+| Account deletion (refused while payment is held) | `DeleteAccount.tsx`, `delete-account` |
 | Featured listings (£19, 7 days) and Startup Pro / Scale plans, sold through Stripe Checkout in the browser | `project/[id].tsx`, `plans.tsx`, `billing-checkout` |
 | Admin hand-matching + metrics (fill rate, time to match, repeat clients) | `src/app/admin.tsx` |
 | One `Api` interface, two implementations | `src/lib/api.ts`, `src/lib/demo/store.ts`, `src/lib/supabase/api.ts` |

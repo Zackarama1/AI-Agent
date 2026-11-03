@@ -38,7 +38,7 @@ export function seed(): DemoDb {
     { id: 'admin', role: 'admin', fullName: 'Collabify Team', email: 'admin@collabify.demo' },
   ];
 
-  const db: DemoDb = { users, projects: [], applications: [], contracts: [], deliveries: [], reviews: [], messages: [] };
+  const db: DemoDb = { users, projects: [], applications: [], contracts: [], deliveries: [], reviews: [], messages: [], notifications: [] };
 
   const project = (
     id: string, businessId: string, title: string, category: string, brief: string, budget: number, hours: number, days: number,
@@ -106,5 +106,13 @@ export function seed(): DemoDb {
     { id: 'm1', contractId: 'c_social', senderId: 'b_sara', body: 'Welcome aboard Tom! Coffee and props are on their way.', createdAt: daysAgo(7) },
     { id: 'm2', contractId: 'c_social', senderId: 's_tom', body: 'Amazing, thanks! First draft calendar coming tomorrow.', createdAt: daysAgo(6) },
   );
+  const note = (userId: string, kind: string, title: string, body: string, link: string, hoursAgo: number, read = false) =>
+    db.notifications.push({ id: `n_${db.notifications.length + 1}`, userId, kind, title, body, link, readAt: read ? daysAgo(0, hoursAgo) : null, createdAt: daysAgo(0, hoursAgo) });
+  note('b_sara', 'application', 'New applicant', 'Maya Patel applied to Subscription account page.', '/project/p_portal', 20);
+  note('b_sara', 'message', 'Tom Okafor', 'Amazing, thanks! First draft calendar coming tomorrow.', '/chat/c_social', 140, true);
+  note('s_tom', 'funded', 'Payment held: start work', '£450 is held for Two weeks of TikTok content.', '/contract/c_social', 168, true);
+  note('s_maya', 'paid', 'You\u2019ve been paid £450', 'Launch landing page is complete. Leave Brewbox (demo) a review.', '/contract/c_landing', 600, true);
+  note('s_ravi', 'shortlisted', 'You\u2019re on the shortlist', 'Logo and brand kit \u00b7 £300', '/project/p_logo', 22);
+  note('b_dan', 'delivered', 'Work delivered', 'Lena Fischer delivered Churn dashboard. It\u2019s paid automatically in 7 days unless you ask for changes.', '/contract/c_churn', 48);
   return db;
 }

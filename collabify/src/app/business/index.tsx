@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { ActivityBell } from '@/components/ActivityBell';
 import { ContractPill, ProjectPill } from '@/components/domain';
 import { Button, Card, Empty, Gap, Heading, Loading, Money, Muted, Row, Screen } from '@/components/ui';
 import { daysUntil } from '@/lib/format';
@@ -23,7 +24,7 @@ export default function BusinessProjects() {
   const byProject = new Map(contracts.map((c) => [c.projectId, c]));
 
   return (
-    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}.`}>
+    <Screen title="Projects" subtitle={`Hi ${me.fullName.split(' ')[0]}.`} right={<ActivityBell />}>
       {action.length > 0 ? (
         <>
           <Heading style={{ marginBottom: space.md }}>Needs you</Heading>
