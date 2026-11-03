@@ -35,7 +35,7 @@ jobs:
           deno-version: v2.x
       - run: deno check */index.ts
       - run: deno lint
-      - run: deno test _shared/
+      - run: deno test --allow-env _shared/
 
   database:
     runs-on: ubuntu-latest

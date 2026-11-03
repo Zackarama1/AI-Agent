@@ -1,12 +1,28 @@
 project_id = "collabify"
 
+[auth]
+site_url = "collabify://"
+additional_redirect_urls = ["collabify://**", "exp://**"]
+
 [auth.email]
-# Sign-in uses a 6-digit one-time code. Edit the "Magic Link" email template to show {{ .Token }}.
+# Sign-in uses a 6-digit one-time code, sent with the templates below (new and returning users).
+enable_signup = true
 otp_length = 6
 otp_expiry = 900
+
+[auth.email.template.confirmation]
+subject = "Your Collabify code"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.magic_link]
+subject = "Your Collabify code"
+content_path = "./supabase/templates/otp.html"
 
 [functions.stripe-webhook]
 verify_jwt = false
 
 [functions.auto-release]
+verify_jwt = false
+
+[functions.stripe-return]
 verify_jwt = false

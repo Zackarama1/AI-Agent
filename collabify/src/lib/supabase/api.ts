@@ -4,6 +4,7 @@ import { ApiError, type Api } from '../api';
 import { isUkUniversityEmail, type Plan } from '../fees';
 import { matchScore } from '../matching';
 import { templateBrief } from '../brief';
+import { appReturnUrl } from '../stripeFlow';
 import type {
   Application, Brief, Business, Contract, Delivery, Message, Profile, Project, Review, Student, StudentPrivate,
 } from '../types';
@@ -102,6 +103,9 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
   const api: Api = {
     mode: 'supabase',
+    refresh() {
+      changed();
+    },
     onChange(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
@@ -136,6 +140,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (!profile) throw new ApiError('Could not finish sign-up');
       return profile;
     },
+    async deleteAccount() {
+      await invoke('delete-account', {});
+      await sb.auth.signOut();
+      changed();
+    },
     async signOut() {
       await sb.auth.signOut();
       changed();
@@ -165,7 +174,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       await write(sb.from('students').update(row).eq('id', await uid()));
     },
     async startPayoutSetup() {
-      const data = await invoke('connect-onboarding', {});
+      const data = await invoke('connect-onboarding', { returnUrl: appReturnUrl() });
       return { url: data?.url };
     },
     async getBusiness(id) {
@@ -184,7 +193,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async changePlan(plan: Plan) {
       // Subscriptions are sold on the web (Stripe Billing), not through in-app purchase.
-      const data = await invoke('billing-checkout', { kind: 'plan', plan });
+      const data = await invoke('billing-checkout', { kind: 'plan', plan, returnUrl: appReturnUrl() });
       return { url: data?.url };
     },
 
@@ -219,7 +228,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return toProject(row as Row);
     },
     async featureProject(projectId) {
-      const data = await invoke('billing-checkout', { kind: 'featured', projectId });
+      const data = await invoke('billing-checkout', { kind: 'featured', projectId, returnUrl: appReturnUrl() });
       return { checkoutUrl: data?.url };
     },
     async cancelProject(projectId) {
@@ -286,7 +295,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return data ? toContract(data) : null;
     },
     async fundContract(contractId) {
-      const data = await invoke('fund-contract', { contractId });
+      const data = await invoke('fund-contract', { contractId, returnUrl: appReturnUrl() });
       return { checkoutUrl: data?.url };
     },
     async deliver(contractId, message, files) {

@@ -1,9 +1,9 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { FeeBreakdown, ProjectPill } from '@/components/domain';
 import { Avatar, Body, Button, Card, Chips, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Pill, Row, Screen, Stars } from '@/components/ui';
+import { openStripe } from '@/lib/stripeFlow';
 import { getApi } from '@/lib/api';
 import { FEATURED_DAYS, FEATURED_LISTING_PENCE, formatGBP, hourlyRatePence } from '@/lib/fees';
 import { APPLICATION_LABEL, timeAgo } from '@/lib/format';
@@ -124,7 +124,7 @@ function OwnerActions({ project }: { project: Project }) {
             style={{ alignSelf: 'flex-start' }}
             onPress={() => feature.run(async () => {
               const { checkoutUrl } = await getApi().featureProject(project.id);
-              if (checkoutUrl) await WebBrowser.openBrowserAsync(checkoutUrl);
+              if (checkoutUrl) await openStripe(checkoutUrl);
             })}
           />
         </>

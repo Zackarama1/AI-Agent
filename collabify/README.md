@@ -40,36 +40,28 @@ supabase/tests/run.sh          # database rules, against a local Postgres (see b
 | Database, RLS, hiring/delivery/review functions | `supabase/migrations/` |
 | Stripe Connect + AI brief writer | `supabase/functions/` |
 
-## Go live with Supabase
+## Go live (real Supabase + Stripe test mode)
 
-1. Create a Supabase project, then link and push the schema:
+1. Create free accounts at supabase.com and stripe.com. You need two keys:
+   - a Supabase personal access token (Account → Access Tokens)
+   - your Stripe **test** secret key (`sk_test_…`)
+2. Run:
    ```bash
-   npx supabase link --project-ref <ref>
-   npx supabase db push
+   SUPABASE_ACCESS_TOKEN=... STRIPE_SECRET_KEY=sk_test_... [ANTHROPIC_API_KEY=...] npm run go-live
    ```
-2. **Auth → Email templates → Magic Link**: show the code with `{{ .Token }}` (the app signs in with a 6-digit code, not a link).
-3. Set the function secrets and deploy:
-   ```bash
-   npx supabase secrets set STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... \
-     STRIPE_PRICE_PRO=price_... STRIPE_PRICE_SCALE=price_... \
-     APP_RETURN_URL=collabify://student/profile CRON_SECRET=<random> ANTHROPIC_API_KEY=<optional>
-   npx supabase functions deploy
-   ```
-   Without `ANTHROPIC_API_KEY`, the brief writer uses the built-in template.
-4. In Stripe (test mode):
-   - Enable Connect with Express accounts.
-   - Create two monthly prices, £29 (Startup Pro) and £99 (Scale), and use their ids for `STRIPE_PRICE_PRO` and `STRIPE_PRICE_SCALE`.
-   - Turn on the customer billing portal, so subscribers can switch plans or cancel.
-   - Add a webhook to `https://<ref>.functions.supabase.co/stripe-webhook` for `checkout.session.completed`,
-     `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` and `account.updated`.
-5. Schedule auto-release daily (SQL editor, with `pg_cron` and `pg_net` enabled):
-   ```sql
-   select cron.schedule('auto-release', '17 3 * * *', $$
-     select net.http_post('https://<ref>.functions.supabase.co/auto-release',
-       headers => '{"x-cron-secret": "<CRON_SECRET>"}'::jsonb)
-   $$);
-   ```
-6. Put `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` in `.env` and restart Expo.
+   The script:
+   - creates the Supabase project (London) and applies all migrations
+   - sets up the 6-digit sign-in emails
+   - creates the £29 and £99 plan prices, the billing portal and the webhook in Stripe
+   - sets the function secrets and deploys every Edge Function
+   - schedules the daily auto-release
+   - writes `.env` so the app uses the real back end
+
+   It's safe to re-run. Generated secrets go in `.env.local`, which is never committed.
+3. Three steps it can't do for you (it prints them at the end):
+   - turn on Stripe Connect (Express accounts, United Kingdom)
+   - add your own email sender (SMTP) in Supabase
+   - make yourself an admin
 
 ## Testing the database rules
 

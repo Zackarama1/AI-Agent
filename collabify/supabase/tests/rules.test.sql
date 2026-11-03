@@ -183,3 +183,17 @@ select pg_temp.check((select status = 'funded' and auto_release_at is null and r
 select raise_issue((select id from contracts where project_id = :'p2' and cancelled_at is null), 'They have stopped replying to messages.');
 select pg_temp.check((select issue_reason is not null and issue_raised_by = auth.uid() from contracts where project_id = :'p2' and cancelled_at is null), 'issue reason recorded');
 reset role;
+
+-- ===== Account deletion =====
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+select pg_temp.expect_error($$select anonymise_user(auth.uid())$$, 'users cannot call anonymise_user directly');
+reset role;
+-- (as the service role, like the delete-account function)
+select pg_temp.check(account_deletion_blocker('00000000-0000-0000-0000-00000000000c') is not null, 'deletion blocked while payment is held');
+select pg_temp.expect_error($$select anonymise_user('00000000-0000-0000-0000-00000000000c')$$, 'cannot anonymise with payment held');
+select anonymise_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select full_name = 'Deleted user' and deleted_at is not null from profiles where id = '00000000-0000-0000-0000-00000000000a'), 'deleted student anonymised');
+select pg_temp.check(not exists (select 1 from student_private where id = '00000000-0000-0000-0000-00000000000a'), 'university email removed');
+select pg_temp.check((select count(*) from contracts where student_id = '00000000-0000-0000-0000-00000000000a' and status = 'released') = 1, 'completed contracts kept for the business');
+select pg_temp.check((select count(*) from reviews where reviewer_id = '00000000-0000-0000-0000-00000000000a') = 1, 'reviews kept');

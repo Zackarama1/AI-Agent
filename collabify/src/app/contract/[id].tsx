@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ContractPill, FeeBreakdown } from '@/components/domain';
 import { Body, Button, Card, Empty, ErrorText, Field, Gap, Heading, Label, Loading, Money, Muted, Row, Screen, StarInput } from '@/components/ui';
+import { openStripe } from '@/lib/stripeFlow';
 import { getApi, type DeliveryFile } from '@/lib/api';
 import { AUTO_RELEASE_DAYS, formatGBP } from '@/lib/fees';
 import { daysUntil, timeAgo } from '@/lib/format';
@@ -235,7 +236,7 @@ export default function ContractScreen() {
             loading={fund.busy}
             onPress={() => fund.run(async () => {
               const { checkoutUrl } = await getApi().fundContract(contract.id);
-              if (checkoutUrl) await WebBrowser.openBrowserAsync(checkoutUrl);
+              if (checkoutUrl) await openStripe(checkoutUrl);
             })}
           />
           {getApi().mode === 'demo' ? <Muted style={{ textAlign: 'center', marginTop: space.sm, fontSize: 12 }}>Demo mode: no card is charged.</Muted> : null}

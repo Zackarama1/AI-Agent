@@ -42,7 +42,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "jest"
+    "test": "jest",
+    "go-live": "node scripts/go-live.mjs"
   },
   "private": true,
   "jest": {

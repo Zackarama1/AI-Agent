@@ -1,9 +1,10 @@
 import { resetTo } from '@/lib/nav';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Avatar, Body, Button, Card, Chip, ErrorText, Field, Gap, Heading, Label, Loading, Muted, Pill, Row, Screen, Stars } from '@/components/ui';
+import { openStripe } from '@/lib/stripeFlow';
+import { DeleteAccount } from '@/components/DeleteAccount';
 import { getApi } from '@/lib/api';
 import { SKILL_OPTIONS } from '@/lib/brief';
 import { haptic } from '@/lib/haptics';
@@ -59,7 +60,7 @@ function StudentProfileForm({ student, priv }: { student: Student; priv: Student
               style={{ alignSelf: 'flex-start' }}
               onPress={() => payouts.run(async () => {
                 const { url } = await getApi().startPayoutSetup();
-                if (url) await WebBrowser.openBrowserAsync(url);
+                if (url) await openStripe(url);
                 haptic.success();
               })}
             />
@@ -91,6 +92,7 @@ function StudentProfileForm({ student, priv }: { student: Student; priv: Student
       <Button title="View public profile" variant="secondary" onPress={() => router.push(`/people/${me.id}`)} />
       <Gap size={space.sm} />
       <Button title="Sign out" variant="ghost" onPress={async () => { await signOut(); resetTo('/welcome'); }} />
+      <DeleteAccount role="student" />
       <Body style={{ textAlign: 'center', marginTop: space.lg, opacity: 0.4, fontSize: 12 }}>{me.email}</Body>
     </Screen>
   );

@@ -137,3 +137,39 @@ describe('demo store: revisions, cancellations, disputes, featuring', () => {
     await expect(api.adminResolve('c_social', 'release')).rejects.toThrow();
   });
 });
+
+describe('demo store: account deletion', () => {
+  it('is refused while payment is held', async () => {
+    const api = freshApi();
+    await signIn(api, 'tom@student.demo.ac.uk'); // c_social is funded
+    await expect(api.deleteAccount()).rejects.toThrow('payment held');
+    expect(await api.getSession()).not.toBeNull();
+  });
+
+  it('anonymises the person, keeps finished work, and signs them out', async () => {
+    const api = freshApi();
+    await signIn(api, 'ravi@student.demo.ac.uk');
+    await api.deleteAccount();
+    expect(await api.getSession()).toBeNull();
+    const ravi = await api.getStudent('s_ravi');
+    expect(ravi).toMatchObject({ fullName: 'Deleted user', university: '', skills: [] });
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    expect((await api.listApplicants('p_logo')).some((a) => a.studentId === 's_ravi')).toBe(false);
+  });
+
+  it('businesses with payment held cannot delete', async () => {
+    const api = freshApi();
+    await signIn(api, 'dan@tidyly.demo', 'business');
+    await expect(api.deleteAccount()).rejects.toThrow(); // c_churn is delivered, payment held
+  });
+
+  it('a deleted business has its open projects closed', async () => {
+    const api = freshApi();
+    await signIn(api, 'new@startup.demo', 'business');
+    await api.completeOnboarding({ role: 'business', fullName: 'New Founder', companyName: 'New Co', website: '' });
+    const p = await api.createProject({ title: 'Logo for New Co', category: 'Design', brief: 'A simple logo with two concepts for our brand.', budgetPence: 20000, estimatedHours: 10, durationDays: 7, skills: ['Figma'] });
+    await api.deleteAccount();
+    expect((await api.getProject(p.id))?.status).toBe('cancelled');
+    expect((await api.listOpenProjects()).some((x) => x.id === p.id)).toBe(false);
+  });
+});

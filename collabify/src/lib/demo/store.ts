@@ -145,6 +145,9 @@ export function createDemoApi(db: DemoDb = seed()): Api {
 
   const api: Api = {
     mode: 'demo',
+    refresh() {
+      changed();
+    },
     onChange(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
@@ -204,6 +207,34 @@ export function createDemoApi(db: DemoDb = seed()): Api {
       currentId = u.id;
       changed();
       return { id: u.id, role: u.role, fullName: u.fullName, email: u.email };
+    },
+    async deleteAccount() {
+      const u = me();
+      if (db.contracts.some((c) => (c.businessId === u.id || c.studentId === u.id) && ['funded', 'delivered', 'disputed'].includes(c.status))) {
+        throw new ApiError('You have a project with payment held. Finish it, or report a problem, before deleting your account.');
+      }
+      for (const c of db.contracts.filter((x) => x.status === 'awaiting_funding' && (x.businessId === u.id || x.studentId === u.id))) {
+        c.status = 'cancelled';
+        if (c.studentId === u.id) {
+          setProjectStatus(c.projectId, 'open');
+          db.applications.filter((a) => a.projectId === c.projectId && a.autoDeclined).forEach((a) => { a.status = 'applied'; a.autoDeclined = false; });
+        }
+      }
+      for (const p of db.projects.filter((x) => x.businessId === u.id && ['open', 'in_progress'].includes(x.status))) {
+        p.status = 'cancelled';
+        p.featuredUntil = null;
+        db.applications.filter((a) => a.projectId === p.id && a.status !== 'hired').forEach((a) => (a.status = 'declined'));
+      }
+      db.applications = db.applications.filter((a) => !(a.studentId === u.id && ['applied', 'shortlisted'].includes(a.status)));
+      if (u.student) {
+        Object.assign(u.student, { university: '', course: '', year: '', skills: [], bio: '', portfolioUrl: '' });
+        u.student.private = { ...u.student.private, universityEmail: '', payoutsEnabled: false, verifiedAt: null };
+      }
+      if (u.business) Object.assign(u.business, { companyName: 'Deleted business', website: '', plan: 'free' });
+      u.fullName = 'Deleted user';
+      u.email = `deleted-${u.id}`; // frees the email for a new sign-up
+      currentId = null;
+      changed();
     },
     async signOut() {
       currentId = null;

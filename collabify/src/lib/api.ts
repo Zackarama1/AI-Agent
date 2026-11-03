@@ -19,6 +19,8 @@ export interface Api {
   readonly mode: 'demo' | 'supabase';
   /** Fires after any write so screens can refresh. */
   onChange(cb: () => void): () => void;
+  /** Ask every screen to reload (e.g. after returning from a Stripe page). */
+  refresh(): void;
 
   // Auth
   getSession(): Promise<Profile | null>;
@@ -26,6 +28,8 @@ export interface Api {
   verifyCode(email: string, code: string): Promise<{ profile: Profile | null }>;
   completeOnboarding(input: OnboardingInput): Promise<Profile>;
   signOut(): Promise<void>;
+  /** Delete the signed-in account. Refused while payment is held for one of their projects. */
+  deleteAccount(): Promise<void>;
 
   // People
   getStudent(id: string): Promise<Student | null>;

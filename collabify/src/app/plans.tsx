@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { Button, Card, ErrorText, Heading, Loading, Muted, Pill, Row, Screen, Title } from '@/components/ui';
+import { openStripe } from '@/lib/stripeFlow';
 import { getApi } from '@/lib/api';
 import { feeFor, formatGBP, PLANS, type Plan } from '@/lib/fees';
 import { haptic } from '@/lib/haptics';
@@ -20,7 +20,7 @@ export default function Plans() {
   const choose = (plan: Plan) =>
     run(async () => {
       const { url } = await getApi().changePlan(plan);
-      if (url) await WebBrowser.openBrowserAsync(url);
+      if (url) await openStripe(url);
       haptic.success();
       router.back();
     });

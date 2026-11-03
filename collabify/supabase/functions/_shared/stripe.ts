@@ -2,7 +2,7 @@ import { env } from './http.ts';
 
 /** Minimal Stripe REST client (form-encoded), test or live depending on STRIPE_SECRET_KEY. */
 export async function stripe<T = Record<string, unknown>>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   params?: Record<string, unknown>,
   idempotencyKey?: string,

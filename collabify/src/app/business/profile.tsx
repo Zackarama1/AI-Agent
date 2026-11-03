@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Avatar, Button, Card, ErrorText, Field, Gap, Heading, Label, Loading, Muted, Row, Screen, Stars } from '@/components/ui';
+import { DeleteAccount } from '@/components/DeleteAccount';
 import { getApi } from '@/lib/api';
 import { PLANS } from '@/lib/fees';
 import { haptic } from '@/lib/haptics';
@@ -50,6 +51,7 @@ function BusinessProfileForm({ business }: { business: Business }) {
       <Button title="Save" loading={save.busy} onPress={() => save.run(async () => { await getApi().updateMyBusiness(form); haptic.success(); })} />
       <Gap />
       <Button title="Sign out" variant="ghost" onPress={async () => { await signOut(); resetTo('/welcome'); }} />
+      <DeleteAccount role="business" />
     </Screen>
   );
 }
