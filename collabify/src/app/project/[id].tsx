@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CompanyLogo, TrackRecord, companyFacts } from '@/components/company';
 import { FadeIn } from '@/components/motion';
+import { SaveButton } from '@/components/SaveButton';
 import { LEVEL_LABEL, whereLabel } from '@/lib/projectRules';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -262,7 +263,7 @@ export default function ProjectDetail() {
 
   return (
     <Screen edges={[]}>
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen options={{ title: '', headerRight: me.role === 'student' ? () => <SaveButton projectId={project.id} size={24} /> : undefined }} />
       <FadeIn>
         <Row gap={6}>
           {project.featured ? <Pill label="Featured" tone="primary" /> : null}

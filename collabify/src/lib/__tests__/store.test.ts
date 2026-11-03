@@ -276,3 +276,43 @@ describe('demo store: listings', () => {
     expect(dan.map((p) => p.id).sort()).toEqual(['p_logo', 'p_research']);
   });
 });
+
+describe('demo store: inbox, saved, talent', () => {
+  it('lists one conversation per project with the latest message and unread count', async () => {
+    const api = freshApi();
+    await signIn(api, 'tom@student.demo.ac.uk');
+    await api.sendMessage('c_social', 'Draft calendar is in the shared folder.');
+    await signIn(api, SARA, 'business');
+    const convs = await api.listConversations();
+    expect(convs[0]).toMatchObject({ contractId: 'c_social', otherName: 'Tom Okafor', otherIsCompany: false, unread: 1 });
+    expect(convs[0].lastMessage).toMatchObject({ body: 'Draft calendar is in the shared folder.', mine: false });
+    await api.markConversationRead('c_social');
+    expect((await api.listConversations())[0].unread).toBe(0);
+    await signIn(api, 'tom@student.demo.ac.uk');
+    expect((await api.listConversations())[0]).toMatchObject({ otherName: 'Brewbox (demo)', otherIsCompany: true, lastMessage: { mine: true } });
+  });
+
+  it('saves and unsaves projects for the student only', async () => {
+    const api = freshApi();
+    await signIn(api, MAYA);
+    expect(await api.listSavedIds()).toEqual(['p_research']);
+    await api.setSaved('p_survey', true);
+    await api.setSaved('p_survey', true); // idempotent
+    expect((await api.listSavedProjects()).map((p) => p.id)).toEqual(['p_survey', 'p_research']);
+    await api.setSaved('p_research', false);
+    expect(await api.listSavedIds()).toEqual(['p_survey']);
+    await signIn(api, SARA, 'business');
+    await expect(api.listSavedIds()).rejects.toThrow();
+  });
+
+  it('lets businesses browse verified students by skill and search', async () => {
+    const api = freshApi();
+    await signIn(api, SARA, 'business');
+    const all = await api.listStudents();
+    expect(all[0].fullName).toBe('Maya Patel'); // best rated first
+    expect((await api.listStudents({ skill: 'figma' })).map((s) => s.id).sort()).toEqual(['s_maya', 's_ravi']);
+    expect((await api.listStudents({ search: 'edinburgh' })).map((s) => s.id)).toEqual(['s_lena']);
+    await signIn(api, MAYA);
+    await expect(api.listStudents()).rejects.toThrow();
+  });
+});

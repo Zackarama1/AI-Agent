@@ -272,6 +272,27 @@ reset role;
 select pg_temp.check((business_stats('00000000-0000-0000-0000-00000000000b') ->> 'studentsHired')::int = 2, 'company stats count students hired');
 select pg_temp.check((business_stats('00000000-0000-0000-0000-00000000000b') ->> 'paidProjects')::int = 1, 'company stats count paid projects');
 
+-- ===== Saved projects and conversation read state =====
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+insert into saved_projects (student_id, project_id) values (auth.uid(), :'p4');
+select pg_temp.expect_error($$insert into saved_projects (student_id, project_id) values ('00000000-0000-0000-0000-00000000000b', (select id from projects where title = 'Social media audit'))$$, 'cannot save on someone else''s behalf');
+select pg_temp.check((select count(*) from saved_projects) = 1, 'student sees their saved projects');
+delete from saved_projects where project_id = :'p4';
+select pg_temp.check((select count(*) from saved_projects) = 0, 'student unsaves a project');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+select pg_temp.check((select count(*) from saved_projects) = 0, 'businesses cannot see who saved what');
+insert into messages (contract_id, sender_id, body) select id, auth.uid(), 'Quick question about the hero section' from contracts where project_id = :'p2' and cancelled_at is null;
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+set role authenticated;
+select pg_temp.check(exists (select 1 from notifications where kind = 'message' and read_at is null), 'message notification is unread');
+select mark_conversation_read((select id from contracts where project_id = :'p2' and cancelled_at is null));
+select pg_temp.check(not exists (select 1 from notifications where kind = 'message' and read_at is null), 'opening the conversation clears it');
+reset role;
+
 -- ===== Guard: no table-wide write access for app users beyond this allowlist =====
 -- Supabase grants ALL on new tables by default; every migration that creates a table must revoke it.
 select pg_temp.check(
@@ -279,5 +300,5 @@ select pg_temp.check(
    from information_schema.role_table_grants
    where table_schema = 'public' and grantee in ('anon', 'authenticated')
      and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
-     and (table_name, privilege_type) not in (('push_tokens', 'INSERT'), ('push_tokens', 'DELETE'), ('applications', 'DELETE'), ('project_invites', 'INSERT'))), '') = '',
+     and (table_name, privilege_type) not in (('push_tokens', 'INSERT'), ('push_tokens', 'DELETE'), ('applications', 'DELETE'), ('project_invites', 'INSERT'), ('saved_projects', 'INSERT'), ('saved_projects', 'DELETE'))), '') = '',
   'no unexpected table-wide write grants');

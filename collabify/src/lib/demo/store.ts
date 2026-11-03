@@ -37,6 +37,7 @@ export type DemoDb = {
   messages: Message[];
   notifications: (AppNotification & { userId: string })[];
   invites: { projectId: string; studentId: string; createdAt: string }[];
+  saved: { studentId: string; projectId: string; createdAt: string }[];
 };
 
 const DEMO_CODE_LENGTH = 6;
@@ -688,6 +689,73 @@ export function createDemoApi(db: DemoDb = seed()): Api {
         notify(c.studentId, 'refunded', 'Project closed', `${title} was closed and the business refunded.`, `/contract/${c.id}`);
       }
       changed();
+    },
+
+    // ---------- Inbox ----------
+    async listConversations() {
+      const u = me();
+      return db.contracts
+        .filter((c) => (c.businessId === u.id || c.studentId === u.id) && c.status !== 'cancelled')
+        .map((c) => {
+          const isStudent = c.studentId === u.id;
+          const otherId = isStudent ? c.businessId : c.studentId;
+          const last = db.messages.filter((m) => m.contractId === c.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+          return {
+            contractId: c.id,
+            projectTitle: titleOf(c.projectId),
+            otherId,
+            otherName: isStudent ? companyOf(otherId) : nameOf(otherId),
+            otherIsCompany: isStudent,
+            status: c.status,
+            lastMessage: last ? { body: last.body, mine: last.senderId === u.id, createdAt: last.createdAt } : null,
+            unread: db.notifications.filter((n) => n.userId === u.id && n.kind === 'message' && n.link === `/chat/${c.id}` && !n.readAt).length,
+          };
+        })
+        .sort((a, b) => (b.lastMessage?.createdAt ?? '').localeCompare(a.lastMessage?.createdAt ?? ''));
+    },
+    async markConversationRead(cid) {
+      const u = me();
+      const at = now();
+      let changedAny = false;
+      db.notifications.filter((n) => n.userId === u.id && n.kind === 'message' && n.link === `/chat/${cid}` && !n.readAt).forEach((n) => {
+        n.readAt = at;
+        changedAny = true;
+      });
+      if (changedAny) changed();
+    },
+
+    // ---------- Saved projects ----------
+    async listSavedIds() {
+      const u = requireRole('student');
+      return db.saved.filter((s) => s.studentId === u.id).map((s) => s.projectId);
+    },
+    async listSavedProjects() {
+      const u = requireRole('student');
+      return db.saved
+        .filter((s) => s.studentId === u.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((s) => db.projects.find((p) => p.id === s.projectId))
+        .filter((p): p is DemoProject => Boolean(p))
+        .map(toProject);
+    },
+    async setSaved(projectId, saved) {
+      const u = requireRole('student');
+      const i = db.saved.findIndex((s) => s.studentId === u.id && s.projectId === projectId);
+      if (saved && i < 0) db.saved.push({ studentId: u.id, projectId, createdAt: now() });
+      if (!saved && i >= 0) db.saved.splice(i, 1);
+      changed();
+    },
+
+    // ---------- Talent ----------
+    async listStudents(filter = {}) {
+      requireRole('business', 'admin');
+      const q = filter.search?.trim().toLowerCase() ?? '';
+      return db.users
+        .filter((x) => x.role === 'student' && !x.email.startsWith('deleted-') && x.student?.private.verifiedAt)
+        .map(toStudent)
+        .filter((s) => !filter.skill || s.skills.some((k) => k.toLowerCase() === filter.skill!.toLowerCase()))
+        .filter((s) => !q || `${s.fullName} ${s.university} ${s.course} ${s.skills.join(' ')}`.toLowerCase().includes(q))
+        .sort((a, b) => (b.rating.average ?? 0) - (a.rating.average ?? 0) || b.completedCount - a.completedCount);
     },
 
     // ---------- Notifications ----------

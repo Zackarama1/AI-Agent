@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { ActivityBell } from '@/components/ActivityBell';
 import { CompanyLogo } from '@/components/company';
 import { ProjectCard } from '@/components/domain';
 import { FadeIn, PressableScale, SkeletonCard } from '@/components/motion';
@@ -80,7 +79,7 @@ export default function ProjectsFeed() {
   const strength = student && priv ? studentStrength(student, priv) : null;
 
   return (
-    <Screen title="Projects" subtitle={`${greeting()}, ${me.fullName.split(' ')[0]}.`} right={<ActivityBell />} refreshable>
+    <Screen title="Discover" subtitle={`${greeting()}, ${me.fullName.split(' ')[0]}.`} refreshable>
       {strength?.next ? <FadeIn><StrengthCard score={strength.score} next={strength.next} /></FadeIn> : null}
 
       {top.length > 0 ? (
@@ -108,7 +107,7 @@ export default function ProjectsFeed() {
           {browsing ? <Muted style={{ marginBottom: space.md }}>{sorted.length} open project{sorted.length === 1 ? '' : 's'}</Muted> : null}
           {sorted.map((p, i) => (
             <FadeIn key={p.id} index={i}>
-              <ProjectCard project={p} invited={invitedIds.has(p.id)} matchScore={student ? matchScore(p, student) : undefined} onPress={() => router.push(`/project/${p.id}`)} />
+              <ProjectCard project={p} saveable invited={invitedIds.has(p.id)} matchScore={student ? matchScore(p, student) : undefined} onPress={() => router.push(`/project/${p.id}`)} />
             </FadeIn>
           ))}
         </View>

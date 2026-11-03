@@ -49,7 +49,7 @@ export function seed(): DemoDb {
     { id: 'admin', role: 'admin', fullName: 'Collabify Team', email: 'admin@collabify.demo' },
   ];
 
-  const db: DemoDb = { users, projects: [], applications: [], contracts: [], deliveries: [], reviews: [], messages: [], notifications: [], invites: [] };
+  const db: DemoDb = { users, projects: [], applications: [], contracts: [], deliveries: [], reviews: [], messages: [], notifications: [], invites: [], saved: [] };
 
   // Briefs list deliverables as "• " lines; split them out into the structured field.
   const project = (
@@ -133,6 +133,7 @@ export function seed(): DemoDb {
   note('s_ravi', 'shortlisted', 'You\u2019re on the shortlist', 'Logo and brand kit \u00b7 £300', '/project/p_logo', 22);
   note('b_dan', 'delivered', 'Work delivered', 'Lena Fischer delivered Churn dashboard. It\u2019s paid automatically in 7 days unless you ask for changes.', '/contract/c_churn', 48);
   db.invites.push({ projectId: 'p_survey', studentId: 's_lena', createdAt: daysAgo(0, 5) });
+  db.saved.push({ studentId: 's_maya', projectId: 'p_research', createdAt: daysAgo(0, 30) });
   note('s_lena', 'invited', 'You\u2019re invited to apply', 'Brewbox (demo) would like you to apply for Customer survey insights \u00b7 £280.', '/project/p_survey', 5);
   return db;
 }

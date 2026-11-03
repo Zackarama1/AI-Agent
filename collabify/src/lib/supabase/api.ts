@@ -6,7 +6,7 @@ import { matchScore } from '../matching';
 import { templateBrief } from '../brief';
 import { appReturnUrl } from '../stripeFlow';
 import type {
-  AppNotification, Application, Brief, Business, Contract, Delivery, Message, Profile, Project, Review, Student, StudentPrivate,
+  AppNotification, Application, Brief, Conversation, Business, Contract, Delivery, Message, Profile, Project, Review, Student, StudentPrivate,
 } from '../types';
 
 /**
@@ -416,6 +416,67 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async sendMessage(contractId, body) {
       if (!body.trim()) return;
       await write(sb.from('messages').insert({ contract_id: contractId, sender_id: await uid(), body: body.trim() }));
+    },
+
+    // ---------- Inbox ----------
+    async listConversations() {
+      const me = await uid();
+      const contracts = (await api.listMyContracts()).filter((c) => c.status !== 'cancelled');
+      if (!contracts.length) return [];
+      const ids = contracts.map((c) => c.id);
+      const [{ data: msgs }, { data: unread }] = await Promise.all([
+        sb.from('messages').select('contract_id, sender_id, body, created_at').in('contract_id', ids).order('created_at', { ascending: false }).limit(500),
+        sb.from('notifications').select('link').eq('kind', 'message').is('read_at', null),
+      ]);
+      const latest = new Map<string, Row>();
+      for (const m of msgs ?? []) if (!latest.has(m.contract_id)) latest.set(m.contract_id, m);
+      const unreadBy = new Map<string, number>();
+      for (const n of unread ?? []) unreadBy.set(n.link, (unreadBy.get(n.link) ?? 0) + 1);
+      return contracts
+        .map((c): Conversation => {
+          const isStudent = c.studentId === me;
+          const m = latest.get(c.id);
+          return {
+            contractId: c.id, projectTitle: c.projectTitle, status: c.status,
+            otherId: isStudent ? c.businessId : c.studentId, otherName: isStudent ? c.companyName : c.studentName, otherIsCompany: isStudent,
+            lastMessage: m ? { body: m.body, mine: m.sender_id === me, createdAt: m.created_at } : null,
+            unread: unreadBy.get(`/chat/${c.id}`) ?? 0,
+          };
+        })
+        .sort((a, b) => (b.lastMessage?.createdAt ?? '').localeCompare(a.lastMessage?.createdAt ?? ''));
+    },
+    async markConversationRead(contractId) {
+      await write(sb.rpc('mark_conversation_read', { p_contract_id: contractId }));
+    },
+
+    // ---------- Saved projects ----------
+    async listSavedIds() {
+      const { data, error } = await sb.from('saved_projects').select('project_id').eq('student_id', await uid());
+      fail(error);
+      return (data ?? []).map((r) => r.project_id);
+    },
+    async listSavedProjects() {
+      const { data, error } = await sb.from('saved_projects').select(`created_at, project:projects(${PROJECT_SELECT})`).eq('student_id', await uid()).order('created_at', { ascending: false });
+      fail(error);
+      return Promise.all((data ?? []).map((r) => r.project).filter(Boolean).map((p) => toProject(p as unknown as Row)));
+    },
+    async setSaved(projectId, saved) {
+      const me = await uid();
+      if (saved) await write(sb.from('saved_projects').upsert({ student_id: me, project_id: projectId }, { onConflict: 'student_id,project_id', ignoreDuplicates: true }));
+      else await write(sb.from('saved_projects').delete().eq('student_id', me).eq('project_id', projectId));
+    },
+
+    // ---------- Talent ----------
+    async listStudents(filter = {}) {
+      let q = sb.from('students').select(STUDENT_SELECT).limit(200);
+      if (filter.skill) q = q.contains('skills', [filter.skill]);
+      const { data, error } = await q;
+      fail(error);
+      const search = filter.search?.trim().toLowerCase() ?? '';
+      const rows = (data ?? []).filter((r) => r.profile?.full_name !== 'Deleted user')
+        .filter((r) => !search || `${r.profile?.full_name} ${r.university} ${r.course} ${(r.skills ?? []).join(' ')}`.toLowerCase().includes(search));
+      const students = await Promise.all(rows.map(toStudent));
+      return students.sort((a, b) => (b.rating.average ?? 0) - (a.rating.average ?? 0) || b.completedCount - a.completedCount);
     },
 
     // ---------- Notifications ----------

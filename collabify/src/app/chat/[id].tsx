@@ -18,6 +18,11 @@ export default function Chat() {
   const [text, setText] = useState('');
   const list = useRef<FlatList>(null);
 
+  // Opening the conversation clears its unread count.
+  useEffect(() => {
+    getApi().markConversationRead(id).catch(() => {});
+  }, [id, messages?.length]);
+
   // Live updates arrive through onChange in demo mode; poll as a fallback for the network back end.
   useEffect(() => {
     const t = setInterval(reload, 5000);

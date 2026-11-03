@@ -134,6 +134,19 @@ export type ContractReviews = { mine: Review | null; theirs: Review | null; thei
 
 export type Message = { id: string; contractId: string; senderId: string; body: string; createdAt: string };
 
+/** One thread per contract: the project, the other person and the latest message. */
+export type Conversation = {
+  contractId: string;
+  projectTitle: string;
+  otherId: string;
+  otherName: string;
+  /** Companies show as square logos, students as round avatars. */
+  otherIsCompany: boolean;
+  status: ContractStatus;
+  lastMessage: { body: string; mine: boolean; createdAt: string } | null;
+  unread: number;
+};
+
 export type Suggestion = { student: Student; score: number; invited: boolean };
 
 export type AppNotification = {

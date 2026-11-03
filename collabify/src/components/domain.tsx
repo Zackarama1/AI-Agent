@@ -6,6 +6,7 @@ import type { Contract, ContractStatus, Project, ProjectStatus } from '@/lib/typ
 import { fonts, space, useTheme } from '@/theme';
 import { LEVEL_LABEL, whereLabel } from '@/lib/projectRules';
 import { CompanyLogo } from './company';
+import { SaveButton } from './SaveButton';
 import { Body, Card, Divider, Heading, LineItem, Money, Muted, Pill, Row } from './ui';
 
 const CONTRACT_TONE: Record<ContractStatus, 'neutral' | 'primary' | 'money' | 'warning' | 'danger'> = {
@@ -18,7 +19,7 @@ const PROJECT_TONE: Record<ProjectStatus, 'neutral' | 'primary' | 'money' | 'war
 };
 export const ProjectPill = ({ status }: { status: ProjectStatus }) => <Pill label={PROJECT_LABEL[status]} tone={PROJECT_TONE[status]} />;
 
-export function ProjectCard({ project, onPress, matchScore, showStatus, invited }: { project: Project; onPress: () => void; matchScore?: number; showStatus?: boolean; invited?: boolean }) {
+export function ProjectCard({ project, onPress, matchScore, showStatus, invited, saveable }: { project: Project; onPress: () => void; matchScore?: number; showStatus?: boolean; invited?: boolean; saveable?: boolean }) {
   const { colors } = useTheme();
   return (
     <Card onPress={onPress} testID={`project-${project.id}`}>
@@ -29,7 +30,10 @@ export function ProjectCard({ project, onPress, matchScore, showStatus, invited 
           <Pill label={project.category} />
           {project.level === 'beginner' ? <Pill label={LEVEL_LABEL.beginner} tone="money" /> : null}
         </Row>
-        {showStatus ? <ProjectPill status={project.status} /> : <Muted style={{ fontSize: 13 }}>{timeAgo(project.createdAt)}</Muted>}
+        <Row gap={space.md}>
+          {showStatus ? <ProjectPill status={project.status} /> : <Muted style={{ fontSize: 13 }}>{timeAgo(project.createdAt)}</Muted>}
+          {saveable ? <SaveButton projectId={project.id} /> : null}
+        </Row>
       </Row>
       <Heading>{project.title}</Heading>
       <Row style={{ marginTop: space.sm }}>

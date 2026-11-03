@@ -1,5 +1,5 @@
 import type {
-  AdminOverview, AppNotification, Application, CompanySize, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
+  AdminOverview, AppNotification, Application, CompanySize, Conversation, Brief, Business, Contract, ContractReviews, Delivery, Message, NewProject,
   Profile, Project, Review, Role, Student, StudentPrivate, Suggestion,
 } from './types';
 import type { Plan } from './fees';
@@ -91,6 +91,19 @@ export interface Api {
   // Messages
   listMessages(contractId: string): Promise<Message[]>;
   sendMessage(contractId: string, body: string): Promise<void>;
+
+  // Inbox
+  listConversations(): Promise<Conversation[]>;
+  /** Clear the unread count for one conversation. */
+  markConversationRead(contractId: string): Promise<void>;
+
+  // Saved projects (students)
+  listSavedIds(): Promise<string[]>;
+  listSavedProjects(): Promise<Project[]>;
+  setSaved(projectId: string, saved: boolean): Promise<void>;
+
+  // Talent (businesses browse verified students)
+  listStudents(filter?: { search?: string; skill?: string }): Promise<Student[]>;
 
   // Notifications
   listNotifications(): Promise<AppNotification[]>;
